@@ -1,7 +1,7 @@
 {
   "C_Cpp.intelliSenseEngine": "default",
   "idf.espIdfPath": "/home/adnan/esp/v5.4.2/esp-idf",
-  "idf.pythonInstallPath": "/usr/bin/python3",
+  "idf.pythonInstallPath": "C:\\Users\\adnan\\.espressif\\tools\\idf-python\\3.11.2\\python.exe",
   "idf.openOcdConfigs": [
     "board/esp32s3-builtin.cfg"
   ],
@@ -17,5 +17,7 @@
     "--compile-commands-dir=${workspaceFolder}/build"
   ],
   "idf.flashType": "JTAG",
-  "ros.distro": "humble"
+  "ros.distro": "humble",
+  "idf.espIdfPathWin": "C:\\Users\\adnan\\esp\\v5.4.2\\esp-idf",
+  "idf.toolsPathWin": "C:\\Users\\adnan\\.espressif"
 }
