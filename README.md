@@ -112,3 +112,95 @@ All actuator control and communication will be deterministic and coordinated thr
 * **`ConfigurationManager`**: Handles runtime and persistent settings
 
 All components will follow SOLID design principles, with clear separation between hardware abstraction, control logic, and communication layers.
+
+
+# N2 Table 
+
+
+## Component Descriptions
+
+### **Actuators**
+
+Each actuator corresponds to a joint in the humanoid hand, driven by a DC motor through a Series Elastic Actuator (SEA) structure.
+
+* **ThumbAbd** – Thumb abduction/adduction joint
+* **ThumbFlex** – Thumb flexion/extension joint
+* **IndexFlex** – Index finger flexion/extension joint
+* **MiddleFlex** – Middle finger flexion/extension joint
+* **PinkyFlex** – Pinky finger flexion/extension joint
+
+These actuators each include:
+
+* A DC motor with PWM or PWM+DIR interface
+* An MA3 absolute encoder (PWM output) on the motor shaft
+* A load-side potentiometer read via external SPI ADC
+
+---
+
+### **Drivers & Hardware Interfaces**
+
+* **PWMDrv** – Generates PWM signals to drive motor H-bridges (and DIR for special actuators).
+* **SPIDrv** – Manages communication with external ADC via SPI to acquire analog signals.
+* **ADCDrv** – Abstract interface for retrieving values from the external SPI ADC (e.g., load potentiometers).
+* **ICDrv** – Input capture peripheral interface to read PWM signals from MA3 encoders.
+* **I2CDrv** – Communicates with I2C devices, specifically the IMU.
+* **USBCom** – USB HID communication with host PC. Used for:
+
+  * Streaming sensor data
+  * Receiving commands
+  * Sending logs and diagnostics
+  * Parameter/configuration updates
+
+---
+
+### **Sensors**
+
+* **MA3\_**\* – Shaft encoder for each actuator, provides high-resolution position feedback via PWM.
+* **Pot\_**\* – Analog potentiometer per actuator for measuring elastic load displacement (via SPI ADC).
+* **IMU** – Inertial Measurement Unit connected over I2C. Used for global hand orientation, inertial compensation, or movement context.
+
+---
+
+### **FreeRTOS Tasks**
+
+* **CtrlTask** – Main control loop. Implements:
+
+  * Feedforward PID (PIDFF) with stiffness control
+  * Force impedance control
+  * Generates motor commands
+* **SensorTask** – Handles all sensor data acquisition:
+
+  * Reads MA3 via IC
+  * Acquires potentiometer data via SPI ADC
+  * Requests IMU readings via I2C
+* **USBTask** – Manages USB HID communication
+
+  * Handles inbound commands
+  * Sends real-time data streams or debug info
+* **LogTask** – Gathers system logs, task-level diagnostics, optionally transmits them over USB
+* **SafetyTask** – Monitors system health, sensor sanity checks, watchdog timeouts, and manages fault states
+
+---
+
+### **Utilities**
+
+* **Logger** – Provides structured logging capability to memory buffers or USB output, with support for timestamps and tags.
+* **ConfigMgr** – Configuration manager:
+
+  * Receives new parameters via `USBCom`
+  * Validates and applies control gains, thresholds, limits
+  * Optionally persists settings in non-volatile memory
+
+| From \ To   | CtrlTask               | SensorTask                 | USBTask                     | LogTask                  | SafetyTask              | PWMDrv             | SPIDrv                 | ICDrv                 | I2CDrv               | USBCom                 | ConfigMgr                  |
+|-------------|------------------------|----------------------------|-----------------------------|--------------------------|-------------------------|--------------------|------------------------|------------------------|----------------------|--------------------------|-----------------------------|
+| CtrlTask    | (self)                 | receives sensor data       |                             | sends control logs       | receives safety status  | sends motor cmds   | reads load ADC         | reads encoder pulses   | reads IMU data       |                          | receives config commands    |
+| SensorTask  | sends sensor data      | (self)                     | sends data to USBTask       | sends sensor logs        | sends safety signals    |                    | reads sensor ADCs      | captures MA3 encoder   | reads IMU            |                          |                             |
+| USBTask     |                        |                            | (self)                      | forwards host logs       |                         |                    |                        |                        |                      | communicates with host   | receives and sends configs  |
+| LogTask     | logs control outputs   | logs sensor readings       | logs USB events             | (self)                   | logs safety alerts      |                    |                        |                        |                      |                          |                             |
+| SafetyTask  | sends stop signals     | monitors sensor limits     | sends emergency msg         | logs safety data         | (self)                  |                    |                        |                        |                      |                          |                             |
+| PWMDrv      | drives motors          |                            |                             |                          |                         | (self)             |                        |                        |                      |                          |                             |
+| SPIDrv      | reads load ADC         | reads pressure ADCs        |                             |                          |                         |                    | (self)                |                        |                      |                          |                             |
+| ICDrv       | reads encoder pulses   | sends encoder positions    |                             |                          |                         |                    |                        | (self)                |                      |                          |                             |
+| I2CDrv      | reads IMU              |                             |                             |                          |                         |                    |                        |                        | (self)               |                          |                             |
+| USBCom      |                        |                            |                             |                          |                         |                    |                        |                        |                      | (self)                  | sends commands to config     |
+| ConfigMgr   | sends params to Ctrl   |                            |                             |                          |                         |                    |                        |                        |                      |                          | (self)                      |
