@@ -12,10 +12,13 @@
 #define LEDC_DUTY               (4096) // Set duty to 50%. (2 ** 13) * 50% = 4096
 #define LEDC_FREQUENCY          (4000) // Frequency in Hertz. Set frequency at 4 kHz
 
-
+#include "tasks/logger_task.hpp"
 extern "C" void app_main(void)
 {
     //No operation.
     printf("Motor Control Example\n");
+
+    LoggerTask loggerTask;
+    loggerTask.start();
 
 }
