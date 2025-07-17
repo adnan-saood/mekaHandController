@@ -4,8 +4,6 @@
 #include "esp_err.h"
 
 
-#include "motor_control.hpp"
-
 #define LEDC_TIMER              LEDC_TIMER_0
 #define LEDC_MODE               LEDC_LOW_SPEED_MODE
 #define LEDC_OUTPUT_IO          (5) // Define the output GPIO
