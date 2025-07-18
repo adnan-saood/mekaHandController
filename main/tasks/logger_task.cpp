@@ -1,5 +1,6 @@
 #include "logger_task.hpp"
 #include <cstdio>
+#include "esp_log.h"
 
 LoggerTask::LoggerTask(const char* name, uint32_t stackSize, UBaseType_t priority)
     : taskName(name), stackSize(stackSize), priority(priority) {}
@@ -10,7 +11,7 @@ void LoggerTask::start() {
 
 void LoggerTask::taskFunction(void* pvParameters) {
     while (true) {
-        printf("[Logger] Running\n");
+        ESP_LOGI("Logger", "Running");
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
