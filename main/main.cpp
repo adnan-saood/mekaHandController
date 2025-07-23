@@ -51,7 +51,7 @@ extern "C" void app_main(void)
         if (sensorTask.getEncoderData(encoderData))
         {
             // log Encoder data using esp log directives
-            ESP_LOGI("Encoder", "Position: %d, Velocity: %d",
+            ESP_LOGI("Encoder", "Position: %f, Velocity: %f",
                      encoderData.position[0], encoderData.velocity[0]);
         }
     }
