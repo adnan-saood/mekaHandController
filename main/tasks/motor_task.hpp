@@ -16,6 +16,17 @@ public:
     PIDFFController()
         : kp(1.0f), ki(0.0f), kd(0.0f), kff(0.0f), integral(0.0f), prev_error(0.0f) {}
 
+    PIDFFController(float kp, float ki, float kd, float kff)
+        : kp(kp), ki(ki), kd(kd), kff(kff), integral(0.0f), prev_error(0.0f) {} 
+
+    void setGains(float kp, float ki, float kd, float kff)
+    {
+        this->kp = kp;
+        this->ki = ki;
+        this->kd = kd;
+        this->kff = kff;
+    }
+
     float compute(float setpoint, float position, float velocity)
     {
         float error = setpoint - position;

@@ -15,6 +15,12 @@ void MotorTask::start()
 
 void MotorTask::taskFunction(void *pvParameters)
 {
+    // Initialize motor controllers with default gains
+    // @TODO: Set gains from USB or initial values per motor
+    for (int i = 0; i < NUM_MOTORS; ++i)
+    {
+        controllers[i].setGains(1.0f, 0.0f, 0.0f, 0.0f); // Default gains
+    }
     while (true)
     {
         controlLoop();
@@ -33,6 +39,6 @@ void MotorTask::controlLoop()
             float output_pwm = controllers[i].compute(desired_position, current_position, current_velocity);
 
             // Stub: send PWM signal to motor driver here
-            printf("[Motor %d] PWM Output: %.2f\n", i, output_pwm);
+            // printf("[Motor %d] PWM Output: %.2f\n", i, output_pwm);
         }
     }
