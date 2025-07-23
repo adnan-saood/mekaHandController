@@ -8,51 +8,51 @@
 #include "tasks/motor_task.hpp"
 #include "tasks/sensor_task.hpp"
 
+#include "usb_driver.hpp"
 
-extern "C" void app_main(void)
-{
-    //No operation.
-    printf("Motor Control Example\n");
+extern "C" void app_main(void) {
+    ESP_LOGI("MAIN", "Starting application...");
 
-    // LoggerTask loggerTask;
-    // loggerTask.start();
+    UsbHidDevice hid_device;
 
+    if (!hid_device.init()) {
+        ESP_LOGE("MAIN", "Failed to initialize USB HID device!");
+        return;
+    }
 
-    // Add a motortask
-    // MotorTask motorTask("Motor_Task", 4096, 2);
-    // motorTask.start();
+    // Example: Sending a simple report every second
+    std::vector<uint8_t> tx_report(USB_HID_REPORT_SIZE, 0);
+    uint8_t counter = 0;
 
+    while (true) {
+        if (hid_device.isConnected()) {
+            tx_report[0] = 0xAA; // A magic byte
+            tx_report[1] = counter++; // Incrementing counter
+            tx_report[2] = 0x55; // Another magic byte
 
-    SensorTask sensorTask(2048, 2);
-    sensorTask.start();
+            if (hid_device.sendReport(tx_report)) {
+                ESP_LOGI("MAIN", "Sent HID report: %02X %02X %02X...", tx_report[0], tx_report[1], tx_report[2]);
+            } else {
+                ESP_LOGW("MAIN", "Failed to send HID report (might not be connected yet).");
+            }
 
-    while(1)
-    {
-        // Main loop code
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Sleep for 1 second
-        IMUData imuData;
-        if (sensorTask.getIMUData(imuData))
-        {
-            // log IMU data using esp log directives
-            ESP_LOGI("IMU", "Accel: [%f, %f, %f], Gyro: [%f, %f, %f]",
-                     imuData.accel[0], imuData.accel[1], imuData.accel[2],
-                     imuData.gyro[0], imuData.gyro[1], imuData.gyro[2]);
-            
+            // Example: Try to receive a report if available
+            std::vector<uint8_t> rx_report;
+            if (hid_device.receiveReport(rx_report)) {
+                ESP_LOGI("MAIN", "Received HID report of size %zu:", rx_report.size());
+                // Print received data (for debugging)
+                std::string received_str = "  ";
+                for (uint8_t byte : rx_report) {
+                    char buf[4];
+                    sprintf(buf, "%02X ", byte);
+                    received_str += buf;
+                }
+                ESP_LOGI("MAIN", "%s", received_str.c_str());
+            }
+        } else {
+            ESP_LOGI("MAIN", "USB HID not connected, waiting...");
         }
-        ADCData adcData;
-        if (sensorTask.getADCData(adcData))
-        {
-            // log ADC data using esp log directives
-            ESP_LOGI("ADC", "Values: [%f, %f, %f, %f, %f]",
-                     adcData.values[0], adcData.values[1], adcData.values[2],
-                     adcData.values[3], adcData.values[4]);
-        }
-        EncoderData encoderData;
-        if (sensorTask.getEncoderData(encoderData))
-        {
-            // log Encoder data using esp log directives
-            ESP_LOGI("Encoder", "Position: %f, Velocity: %f",
-                     encoderData.position[0], encoderData.velocity[0]);
-        }
+
+        vTaskDelay(pdMS_TO_TICKS(1000)); // Wait for 1 second
     }
 }
