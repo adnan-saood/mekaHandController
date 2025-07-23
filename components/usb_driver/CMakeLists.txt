@@ -1,3 +1,4 @@
 idf_component_register(SRCS "src/usb_driver.cpp"
-    PRIV_REQUIRES  esp_driver_gpio  esp_tinyusb
-    INCLUDE_DIRS "include" "../../include")
+                            "src/usb_driver_callbacks.cpp"
+                       PRIV_REQUIRES  esp_driver_gpio tinyusb esp_tinyusb freertos
+                       INCLUDE_DIRS "include" "../../include")
