@@ -7,34 +7,50 @@ extern "C" {
 }
 
 #include <array>
-#include "sensor_driver/imu.hpp"   // Stub: IMU driver via I2C
-#include "sensor_driver/adc.hpp"   // Stub: ADC driver via SPI
-#include "sensor_driver/encoder.hpp" // Stub: Encoder driver via input capture
+#include "imu.hpp"   // Stub: IMU driver via I2C
+#include "adc.hpp"   // Stub: ADC driver via SPI
+#include "encoder.hpp" // Stub: Encoder driver via input capture
 
-#define NUM_MOTORS 5
+#include "config.h"
+#include "sensors.hpp" // SensorData struct
 
-struct SensorData {
-    std::array<float, 3> imu_data;      // e.g., [accel_x, accel_y, accel_z]
-    std::array<float, NUM_MOTORS> adc_data; // e.g., one ADC value per motor
-    std::array<float, NUM_MOTORS> encoder_position;
-    std::array<float, NUM_MOTORS> encoder_velocity;
-};
+
 
 class SensorTask {
 public:
-    SensorTask(const char* name, uint32_t stackSize, UBaseType_t priority)
-        : taskName(name), stackSize(stackSize), priority(priority) {
+    SensorTask(uint32_t stackSize, UBaseType_t priority)
+        : stackSize(stackSize), priority(priority) {
         dataMutex = xSemaphoreCreateMutex();
     }
 
     void start() {
-        xTaskCreate(&SensorTask::taskFunction, taskName, stackSize, this, priority, nullptr);
+        xTaskCreate(&SensorTask::imuTask, "IMU_Task", stackSize, this, priority, nullptr);
+        xTaskCreate(&SensorTask::adcTask, "ADC_Task", stackSize, this, priority, nullptr);
+        xTaskCreate(&SensorTask::encoderTask, "Encoder_Task", stackSize, this, priority, nullptr);
     }
 
     // Thread-safe getter for sensor data
-    bool getSensorData(SensorData& outData) {
+    bool getIMUData(IMUData& outData) {
         if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
-            outData = sensorData;
+            outData = imu_data;
+            xSemaphoreGive(dataMutex);
+            return true;
+        }
+        return false;
+    }
+
+    bool getADCData(ADCData& outData) {
+        if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+            outData = adc_data;
+            xSemaphoreGive(dataMutex);
+            return true;
+        }
+        return false;
+    }
+
+    bool getEncoderData(EncoderData& outData) {
+        if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+            outData = encoder_data;
             xSemaphoreGive(dataMutex);
             return true;
         }
@@ -42,36 +58,56 @@ public:
     }
 
 private:
-    static void taskFunction(void* pvParameters) {
+    static void imuTask(void* pvParameters) {
         SensorTask* self = static_cast<SensorTask*>(pvParameters);
         IMU imu;
-        ADC adc;
-        Encoder encoder;
         while (true) {
-            SensorData newData;
-            // Read IMU data via I2C
-            newData.imu_data = imu.read();
-            // Read ADC data via SPI
-            for (int i = 0; i < NUM_MOTORS; ++i) {
-                newData.adc_data[i] = adc.read(i);
-            }
-            // Read encoder data via input capture
-            for (int i = 0; i < NUM_MOTORS; ++i) {
-                newData.encoder_position[i] = encoder.getPosition(i);
-                newData.encoder_velocity[i] = encoder.getVelocity(i);
-            }
-            // Store data thread-safely
+            IMUData newIMUData = imu.read();
             if (xSemaphoreTake(self->dataMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
-                self->sensorData = newData;
+                self->imu_data = newIMUData;
                 xSemaphoreGive(self->dataMutex);
             }
-            vTaskDelay(pdMS_TO_TICKS(5)); // 200 Hz sensor update
+            vTaskDelay(pdMS_TO_TICKS(10)); // 100 Hz
         }
     }
 
-    SensorData sensorData;
+    static void adcTask(void* pvParameters) {
+        SensorTask* self = static_cast<SensorTask*>(pvParameters);
+        ADC adc;
+        while (true) {
+            ADCData newADCData;
+            for (int i = 0; i < NUM_MOTORS; ++i) {
+                newADCData.values[i] = adc.read(i);
+            }
+            if (xSemaphoreTake(self->dataMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+                self->adc_data = newADCData;
+                xSemaphoreGive(self->dataMutex);
+            }
+            vTaskDelay(pdMS_TO_TICKS(10)); // 100 Hz
+        }
+    }
+
+    static void encoderTask(void* pvParameters) {
+        SensorTask* self = static_cast<SensorTask*>(pvParameters);
+        Encoder encoder;
+        while (true) {
+            EncoderData newEncoderData;
+            for (int i = 0; i < NUM_MOTORS; ++i) {
+                newEncoderData.position[i] = encoder.getPosition(i);
+                newEncoderData.velocity[i] = encoder.getVelocity(i);
+            }
+            if (xSemaphoreTake(self->dataMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+                self->encoder_data = newEncoderData;
+                xSemaphoreGive(self->dataMutex);
+            }
+            vTaskDelay(pdMS_TO_TICKS(10)); // 100 Hz
+        }
+    }
+
+    IMUData imu_data;
+    ADCData adc_data;
+    EncoderData encoder_data;
     SemaphoreHandle_t dataMutex;
-    const char* taskName;
     uint32_t stackSize;
     UBaseType_t priority;
 };

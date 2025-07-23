@@ -37,35 +37,12 @@ class MotorTask
 public:
     MotorTask(const char *name, uint32_t stackSize, UBaseType_t priority)
         : taskName(name), stackSize(stackSize), priority(priority) {}
-    void start()
-    {
-        xTaskCreate(&MotorTask::taskFunction, taskName, stackSize, nullptr, priority, nullptr);
-    }
+    void start();
 
 private:
-    static void taskFunction(void *pvParameters)
-    {
-        while (true)
-        {
-            controlLoop();
-            vTaskDelay(pdMS_TO_TICKS(10)); // 100 Hz control loop
-        }
-    }
+    static void taskFunction(void *pvParameters);
 
-    static void controlLoop()
-    {
-        for (int i = 0; i < NUM_MOTORS; ++i)
-        {
-            float desired_position = 1.0f; // Stub: get from USB or initial value per motor
-            float current_position = 0.5f; // Stub: get from encoder per motor
-            float current_velocity = 0.1f; // Stub: optional if controller supports it per motor
-
-            float output_pwm = controllers[i].compute(desired_position, current_position, current_velocity);
-
-            // Stub: send PWM signal to motor driver here
-            printf("[Motor %d] PWM Output: %.2f\n", i, output_pwm);
-        }
-    }
+    static void controlLoop();
 
     static PIDFFController controllers[NUM_MOTORS];
     const char *taskName;

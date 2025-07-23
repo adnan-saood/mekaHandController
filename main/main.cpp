@@ -4,6 +4,9 @@
 #include "esp_err.h"
 
 #include "tasks/logger_task.hpp"
+#include "tasks/motor_task.hpp"
+
+
 extern "C" void app_main(void)
 {
     //No operation.
@@ -11,5 +14,10 @@ extern "C" void app_main(void)
 
     LoggerTask loggerTask;
     loggerTask.start();
+
+
+    // Add a motortask
+    MotorTask motorTask("Motor_Task", 4096, 2);
+    motorTask.start();
 
 }
