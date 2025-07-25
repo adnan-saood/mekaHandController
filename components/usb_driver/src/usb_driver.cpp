@@ -2,7 +2,8 @@
 
 #include "usb_driver.hpp"
 
-extern "C" {
+extern "C"
+{
 #include "driver/gpio.h"
 #include "class/hid/hid_device.h" // For TinyUSB HID specific functions
 }
@@ -16,34 +17,34 @@ extern "C" {
 // Input Report (MCU to PC) - Report ID 2
 //   Data: 1 byte (0-255)
 static const uint8_t hid_report_desc[] = {
-    0x06, 0x00, 0xFF,       // USAGE_PAGE (Vendor Defined Page 1) - Custom page (0xFF00)
-    0x09, 0x01,             // USAGE (Vendor Usage 1) - General device usage
+    0x06, 0x00, 0xFF, // USAGE_PAGE (Vendor Defined Page 1) - Custom page (0xFF00)
+    0x09, 0x01,       // USAGE (Vendor Usage 1) - General device usage
 
-    0xA1, 0x01,             // COLLECTION (Application) - Top-level collection for our device
+    0xA1, 0x01, // COLLECTION (Application) - Top-level collection for our device
 
-        // --- Output Report (PC to MCU) ---
-        // This report is for the PC to send a single 8-bit value to the MCU.
-        // The PC will send a 2-byte packet: [Report ID 1, Data Byte]
-        0x85, 0x01,             //   REPORT_ID (1) - Identifier for this output report
-        0x09, 0x02,             //   USAGE (Vendor Usage 2) - Identifies the input value field
-        0x15, 0x00,             //   LOGICAL_MINIMUM (0) - Data range 0
-        0x25, 0xFF,             //   LOGICAL_MAXIMUM (255) - Data range 255
-        0x75, 0x08,             //   REPORT_SIZE (8) - Each data item is 8 bits (1 byte)
-        0x95, 0x01,             //   REPORT_COUNT (1) - There is 1 data item
-        0x91, 0x02,             //   OUTPUT (Data,Var,Abs)
+    // --- Output Report (PC to MCU) ---
+    // This report is for the PC to send a single 8-bit value to the MCU.
+    // The PC will send a 2-byte packet: [Report ID 1, Data Byte]
+    0x85, 0x01, //   REPORT_ID (1) - Identifier for this output report
+    0x09, 0x02, //   USAGE (Vendor Usage 2) - Identifies the input value field
+    0x15, 0x00, //   LOGICAL_MINIMUM (0) - Data range 0
+    0x25, 0xFF, //   LOGICAL_MAXIMUM (255) - Data range 255
+    0x75, 0x08, //   REPORT_SIZE (8) - Each data item is 8 bits (1 byte)
+    0x95, 0x01, //   REPORT_COUNT (1) - There is 1 data item
+    0x91, 0x02, //   OUTPUT (Data,Var,Abs)
 
-        // --- Input Report (MCU to PC) ---
-        // This report is for the MCU to send a single 8-bit value (incremented) to the PC.
-        // The MCU will send a 2-byte packet: [Report ID 2, Data Byte]
-        0x85, 0x02,             //   REPORT_ID (2) - Identifier for this input report
-        0x09, 0x03,             //   USAGE (Vendor Usage 3) - Identifies the output value field
-        0x15, 0x00,             //   LOGICAL_MINIMUM (0)
-        0x25, 0xFF,             //   LOGICAL_MAXIMUM (255)
-        0x75, 0x08,             //   REPORT_SIZE (8) - Each data item is 8 bits
-        0x95, 0x01,             //   REPORT_COUNT (1) - There is 1 data item
-        0x81, 0x02,             //   INPUT (Data,Var,Abs)
+    // --- Input Report (MCU to PC) ---
+    // This report is for the MCU to send a single 8-bit value (incremented) to the PC.
+    // The MCU will send a 2-byte packet: [Report ID 2, Data Byte]
+    0x85, 0x02, //   REPORT_ID (2) - Identifier for this input report
+    0x09, 0x03, //   USAGE (Vendor Usage 3) - Identifies the output value field
+    0x15, 0x00, //   LOGICAL_MINIMUM (0)
+    0x25, 0xFF, //   LOGICAL_MAXIMUM (255)
+    0x75, 0x08, //   REPORT_SIZE (8) - Each data item is 8 bits
+    0x95, 0x01, //   REPORT_COUNT (1) - There is 1 data item
+    0x81, 0x02, //   INPUT (Data,Var,Abs)
 
-    0xC0                    // END_COLLECTION
+    0xC0 // END_COLLECTION
 };
 
 // --- USB Configuration Descriptor ---
@@ -57,7 +58,7 @@ static const uint8_t hid_cfg_desc[] = {
 };
 
 // --- USB String Descriptors ---
-static const char* hid_str_desc[] = {
+static const char *hid_str_desc[] = {
     (const char[]){0x09, 0x04}, // Language: English (0x0409)
     "YourCompany",              // iManufacturer
     "ESP32 HID Incrementer",    // iProduct
@@ -67,25 +68,31 @@ static const char* hid_str_desc[] = {
 
 // --- Global UsbHidDevice instance pointer ---
 // This is the bridge between the C-style TinyUSB callbacks and your C++ class.
-UsbHidDevice* g_usb_hid_device_instance = nullptr;
+UsbHidDevice *g_usb_hid_device_instance = nullptr;
 
 // --- Global TinyUSB Callbacks (extern "C" to be compatible with TinyUSB C API) ---
 
 // Invoked when received GET HID REPORT DESCRIPTOR request
 // Application returns pointer to descriptor
-extern "C" const uint8_t* tud_hid_descriptor_report_cb(uint8_t instance) {
+extern "C" const uint8_t *tud_hid_descriptor_report_cb(uint8_t instance)
+{
     (void)instance; // Unused parameter
     return hid_report_desc;
 }
 
 // Invoked when received GET_REPORT control request
 // Application must fill buffer with the requested report
-extern "C" uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen) {
-    (void)instance; (void)report_type; (void)reqlen;
+extern "C" uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer, uint16_t reqlen)
+{
+    (void)instance;
+    (void)report_type;
+    (void)reqlen;
     ESP_LOGI(TAG, "GET_REPORT callback: Instance %d, Report ID %d, Type %d, ReqLen %d", instance, report_id, report_type, reqlen);
 
-    if (report_id == 0x02 && reqlen >= 1 && g_usb_hid_device_instance != nullptr) {
-        if (xSemaphoreTake(g_usb_hid_device_instance->getMutex(), pdMS_TO_TICKS(10))) {
+    if (report_id == 0x02 && reqlen >= 1 && g_usb_hid_device_instance != nullptr)
+    {
+        if (xSemaphoreTake(g_usb_hid_device_instance->getMutex(), pdMS_TO_TICKS(10)))
+        {
             buffer[0] = g_usb_hid_device_instance->getValueToSendBack();
             xSemaphoreGive(g_usb_hid_device_instance->getMutex());
             return 1; // Indicate 1 byte of data provided
@@ -96,44 +103,52 @@ extern "C" uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, h
 
 // Invoked when received SET_REPORT control request
 // Application must consume the control data and return the length of data consumed
-extern "C" void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, const uint8_t* buffer, uint16_t bufsize) {
-    (void)instance; (void)report_type;
+extern "C" void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, const uint8_t *buffer, uint16_t bufsize)
+{
+    (void)instance;
+    (void)report_type;
     ESP_LOGI(TAG, "SET_REPORT callback: Instance %d, Report ID %d, Type %d, BufSize %d", instance, report_id, report_type, bufsize);
 
-    if (g_usb_hid_device_instance != nullptr) {
-        if (xSemaphoreTake(g_usb_hid_device_instance->getMutex(), pdMS_TO_TICKS(10))) {
+    if (g_usb_hid_device_instance != nullptr)
+    {
+        if (xSemaphoreTake(g_usb_hid_device_instance->getMutex(), pdMS_TO_TICKS(10)))
+        {
             g_usb_hid_device_instance->handleSetReport(report_id, buffer, bufsize);
             xSemaphoreGive(g_usb_hid_device_instance->getMutex());
-        } else {
+        }
+        else
+        {
             ESP_LOGW(TAG, "SET_REPORT: Could not acquire mutex.");
         }
-    } else {
+    }
+    else
+    {
         ESP_LOGW(TAG, "SET_REPORT: UsbHidDevice instance not set!");
     }
 }
 
 // --- UsbHidDevice Class Implementation ---
 
-
-UsbHidDevice::UsbHidDevice() :
-    received_value_(0),
-    value_to_send_back_(0),
-    new_value_available_(false) {
+UsbHidDevice::UsbHidDevice() : received_value_(0),
+                               value_to_send_back_(0),
+                               new_value_available_(false)
+{
     mutex_ = xSemaphoreCreateMutex();
-    if (mutex_ == NULL) {
+    if (mutex_ == NULL)
+    {
         ESP_LOGE(TAG, "Failed to create mutex");
     }
 }
 
-void UsbHidDevice::init() {
+void UsbHidDevice::init()
+{
     // 1. Initialize GPIO
     const gpio_config_t btn_cfg = {
         .pin_bit_mask = BIT64(APP_BUTTON),
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE
-    };
+        .intr_type = GPIO_INTR_DISABLE};
     gpio_config(&btn_cfg);
     ESP_LOGI(TAG, "GPIO initialized.");
 
@@ -157,55 +172,64 @@ void UsbHidDevice::init() {
 }
 
 // This method is called by the extern "C" tud_hid_set_report_cb
-void UsbHidDevice::handleSetReport(uint8_t report_id, const uint8_t* buffer, uint16_t bufsize) {
-    if (report_id == 0x01) { // Our Output Report ID
-        if (bufsize >= 1) { // Expecting at least 1 byte of data after Report ID
-            received_value_ = buffer[0]; // The actual data is at index 0 of the buffer
+void UsbHidDevice::handleSetReport(uint8_t report_id, const uint8_t *buffer, uint16_t bufsize)
+{
+    if (report_id == 0x01)
+    { // Our Output Report ID
+        if (bufsize >= 1)
+        {                                              // Expecting at least 1 byte of data after Report ID
+            received_value_ = buffer[0];               // The actual data is at index 0 of the buffer
             value_to_send_back_ = received_value_ + 1; // Increment the value
-            new_value_available_ = true; // Set flag to indicate new value is ready to send
+            new_value_available_ = true;               // Set flag to indicate new value is ready to send
             ESP_LOGI(TAG, "Received value: %d, preparing to send back: %d", received_value_, value_to_send_back_);
-        } else {
+        }
+        else
+        {
             ESP_LOGW(TAG, "Received Output Report ID 1 with insufficient data size: %d", bufsize);
         }
-    } else {
+    }
+    else
+    {
         ESP_LOGW(TAG, "Received unknown Report ID for SET_REPORT: %d", report_id);
     }
 }
 
 // Method to send the incremented value back to the PC
-void UsbHidDevice::sendIncrementedValue() {
-    if (!tud_hid_ready()) {
+void UsbHidDevice::sendIncrementedValue()
+{
+    if (!tud_hid_ready())
+    {
         return;
     }
 
     uint8_t payload_data = 13; // Always send value 12
 
-    if (tud_hid_report(0x02, &payload_data, 1)) { // 0x02 is the Report ID for IN report
+    if (tud_hid_report(0x02, &payload_data, 1))
+    { // 0x02 is the Report ID for IN report
         ESP_LOGI(TAG, "Sent Input Report ID 2 with value: %d", payload_data);
-    } else {
+    }
+    else
+    {
         ESP_LOGW(TAG, "Failed to send Input Report ID 2.");
     }
 }
 
 // Main task loop
-void UsbHidDevice::taskLoop() {
-    while (1) {
-        if (tud_mounted()) {
+void UsbHidDevice::taskLoop()
+{
+    while (1)
+    {
+        if (tud_mounted())
+        {
             // Check if there's a new value to send back (triggered by PC sending data)
             // if (new_value_available_) {
-                sendIncrementedValue();
+            sendIncrementedValue();
             // }
-
-            // Optional: Use the button to trigger a test send
-            if (gpio_get_level(APP_BUTTON) == 0) {
-                // Ensure mutex is taken before modifying shared class members
-                if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10))) {
-                    value_to_send_back_ = 255; // Send max value on button press for testing
-                    new_value_available_ = true;
-                    xSemaphoreGive(mutex_);
-                    sendIncrementedValue(); // Trigger immediate send
-                    vTaskDelay(pdMS_TO_TICKS(500)); // Debounce delay after button press
-                }
+            if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)))
+            {
+                sendIncrementedValue();
+                new_value_available_ = false;
+                xSemaphoreGive(mutex_);
             }
         }
         vTaskDelay(pdMS_TO_TICKS(500)); // Small delay to yield to other tasks
