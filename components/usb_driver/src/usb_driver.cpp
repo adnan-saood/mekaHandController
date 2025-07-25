@@ -178,22 +178,12 @@ void UsbHidDevice::sendIncrementedValue() {
         return;
     }
 
-    // This mutex is primarily for protecting `new_value_available_` and `value_to_send_back_`
-    // from concurrent access, especially if `handleSetReport` (called from TinyUSB's task)
-    // and `sendIncrementedValue` (called from UsbHidDevice's taskLoop) could run concurrently.
-    if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10))) {
-        if (new_value_available_) {
-            uint8_t payload_data = value_to_send_back_; // Our 1-byte payload
+    uint8_t payload_data = 13; // Always send value 12
 
-            // Correct call: tud_hid_report(report_id, data_pointer, data_length)
-            if (tud_hid_report(0x02, &payload_data, 1)) { // 0x02 is the Report ID for IN report
-                 ESP_LOGI(TAG, "Sent Input Report ID 2 with value: %d", value_to_send_back_);
-                 new_value_available_ = false; // Reset flag after successful send
-            } else {
-                 ESP_LOGW(TAG, "Failed to send Input Report ID 2.");
-            }
-        }
-        xSemaphoreGive(mutex_);
+    if (tud_hid_report(0x02, &payload_data, 1)) { // 0x02 is the Report ID for IN report
+        ESP_LOGI(TAG, "Sent Input Report ID 2 with value: %d", payload_data);
+    } else {
+        ESP_LOGW(TAG, "Failed to send Input Report ID 2.");
     }
 }
 
@@ -202,9 +192,9 @@ void UsbHidDevice::taskLoop() {
     while (1) {
         if (tud_mounted()) {
             // Check if there's a new value to send back (triggered by PC sending data)
-            if (new_value_available_) {
+            // if (new_value_available_) {
                 sendIncrementedValue();
-            }
+            // }
 
             // Optional: Use the button to trigger a test send
             if (gpio_get_level(APP_BUTTON) == 0) {
@@ -218,6 +208,6 @@ void UsbHidDevice::taskLoop() {
                 }
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(10)); // Small delay to yield to other tasks
+        vTaskDelay(pdMS_TO_TICKS(500)); // Small delay to yield to other tasks
     }
 }
