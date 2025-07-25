@@ -60,9 +60,9 @@ static const uint8_t hid_cfg_desc[] = {
 // --- USB String Descriptors ---
 static const char *hid_str_desc[] = {
     (const char[]){0x09, 0x04}, // Language: English (0x0409)
-    "YourCompany",              // iManufacturer
-    "ESP32 HID Incrementer",    // iProduct
-    "1234567890",               // iSerialNumber
+    "ENSTA",                    // iManufacturer
+    "ESP32 HID Interface",      // iProduct
+    "20250725",                 // iSerialNumber
     "Incrementer Interface",    // iInterface (index 4 in hid_cfg_desc)
 };
 
@@ -137,6 +137,10 @@ UsbHidDevice::UsbHidDevice() : received_value_(0),
     if (mutex_ == NULL)
     {
         ESP_LOGE(TAG, "Failed to create mutex");
+        gpio_set_level(GPIO_NUM_13, 1);
+        vTaskDelay(pdMS_TO_TICKS(200)); // Keep LED on for a short duration
+        gpio_set_level(GPIO_NUM_13, 0);
+        vTaskDelay(pdMS_TO_TICKS(100)); // Keep LED on for a short duration
     }
 }
 
@@ -150,12 +154,37 @@ void UsbHidDevice::init()
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE};
     gpio_config(&btn_cfg);
-    ESP_LOGI(TAG, "GPIO initialized.");
+
+    // 1. Initialize GPIO
+    const gpio_config_t led_cfg = {
+        .pin_bit_mask = BIT64(GPIO_NUM_13),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE};
+    gpio_config(&led_cfg);
+    ESP_LOGI(TAG, "LED initialized.");
+
+    static const tusb_desc_device_t my_device_desc = {
+        .bLength = sizeof(tusb_desc_device_t),
+        .bDescriptorType = TUSB_DESC_DEVICE,
+        .bcdUSB = 0x0200,
+        .bDeviceClass = 0,
+        .bDeviceSubClass = 0,
+        .bDeviceProtocol = 0,
+        .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
+        .idVendor = 0xCafe,
+        .idProduct = 0x4000,
+        .bcdDevice = 0x0100,
+        .iManufacturer = 0x01,
+        .iProduct = 0x02,
+        .iSerialNumber = 0x03,
+        .bNumConfigurations = 0x01};
 
     // 2. Initialize TinyUSB driver
     const tinyusb_config_t tusb_cfg = {
         // EXACT ORDER matching your provided example and including string_descriptor_count
-        .device_descriptor = NULL, // TinyUSB will use default device descriptor if NULL
+        .device_descriptor = &my_device_desc, // TinyUSB will use default device descriptor if NULL
         .string_descriptor = hid_str_desc,
         .string_descriptor_count = sizeof(hid_str_desc) / sizeof(hid_str_desc[0]),
         .external_phy = false,
@@ -174,44 +203,22 @@ void UsbHidDevice::init()
 // This method is called by the extern "C" tud_hid_set_report_cb
 void UsbHidDevice::handleSetReport(uint8_t report_id, const uint8_t *buffer, uint16_t bufsize)
 {
-    if (report_id == 0x01)
-    { // Our Output Report ID
-        if (bufsize >= 1)
-        {                                              // Expecting at least 1 byte of data after Report ID
-            received_value_ = buffer[0];               // The actual data is at index 0 of the buffer
-            value_to_send_back_ = received_value_ + 1; // Increment the value
-            new_value_available_ = true;               // Set flag to indicate new value is ready to send
-            ESP_LOGI(TAG, "Received value: %d, preparing to send back: %d", received_value_, value_to_send_back_);
-        }
-        else
-        {
-            ESP_LOGW(TAG, "Received Output Report ID 1 with insufficient data size: %d", bufsize);
-        }
-    }
-    else
-    {
-        ESP_LOGW(TAG, "Received unknown Report ID for SET_REPORT: %d", report_id);
-    }
+    // light up led on GPIO_13 when a report is received
+    gpio_set_level(GPIO_NUM_13, 1);
+    this->received_value_ = buffer[0]; // Store the received value
+    new_value_available_ = true;
 }
 
 // Method to send the incremented value back to the PC
 void UsbHidDevice::sendIncrementedValue()
 {
     if (!tud_hid_ready())
-    {
         return;
-    }
 
-    uint8_t payload_data = 13; // Always send value 12
-
-    if (tud_hid_report(0x02, &payload_data, 1))
-    { // 0x02 is the Report ID for IN report
-        ESP_LOGI(TAG, "Sent Input Report ID 2 with value: %d", payload_data);
-    }
-    else
-    {
-        ESP_LOGW(TAG, "Failed to send Input Report ID 2.");
-    }
+    uint8_t payload_data = this->received_value_ + 1; // Increment the received value
+    tud_hid_report(0x02, &payload_data, 1);
+    new_value_available_ = false; // Reset the flag after sending
+    gpio_set_level(GPIO_NUM_13, 0);
 }
 
 // Main task loop
@@ -221,17 +228,11 @@ void UsbHidDevice::taskLoop()
     {
         if (tud_mounted())
         {
-            // Check if there's a new value to send back (triggered by PC sending data)
-            // if (new_value_available_) {
-            sendIncrementedValue();
-            // }
-            if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)))
+            if (new_value_available_)
             {
                 sendIncrementedValue();
-                new_value_available_ = false;
-                xSemaphoreGive(mutex_);
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(500)); // Small delay to yield to other tasks
     }
+    vTaskDelay(pdMS_TO_TICKS(10)); // Small delay to yield to other tasks
 }
