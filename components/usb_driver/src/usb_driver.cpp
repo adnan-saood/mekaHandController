@@ -10,7 +10,6 @@ extern "C"
 #include <numeric>
 #include <iterator>
 
-
 #define APP_BUTTON GPIO_NUM_0 // Still keeping the button for now, but its role might change
 #define TAG "UsbHidDevice"    // Log tag
 
@@ -208,8 +207,10 @@ void UsbHidDevice::handleSetReport(uint8_t report_id, const uint8_t *buffer, uin
 {
     // light up led on GPIO_13 when a report is received
     gpio_set_level(GPIO_NUM_13, 1);
-    if (report_id == 0x01 && bufsize >= 10) {
-        for (int i = 0; i < 10; ++i) {
+    if (report_id == 0x01 && bufsize >= 10)
+    {
+        for (int i = 0; i < 10; ++i)
+        {
             received_value_[i] = buffer[i];
         }
         new_value_available_ = true;
@@ -222,11 +223,14 @@ void UsbHidDevice::sendIncrementedValue()
     if (!tud_hid_ready())
         return;
 
-    // Prepare a buffer with numbers 1 to 37
     uint8_t payload_data[37];
-    for (uint8_t i = 0; i < 37; ++i) {
-        payload_data[i] = i + 1;
+    xSemaphoreTake(mutex_, portMAX_DELAY);
+    // Fill the payload_data with incremented values or any other data you want to send
+    for (int i = 0; i < 37; ++i)
+    {
+        payload_data[i] = payload_data_[i]; // Example: fill with incremented values
     }
+    xSemaphoreGive(mutex_);
 
     tud_hid_report(0x02, payload_data, sizeof(payload_data));
     new_value_available_ = false; // Reset the flag after sending
@@ -242,9 +246,30 @@ void UsbHidDevice::taskLoop()
         {
             if (new_value_available_)
             {
+                xSemaphoreTake(this->getMutex(), pdMS_TO_TICKS(10));
+                for (int i = 0; i < 10; ++i)
+                {
+                    payload_data_[i] = i;
+                }
+                xSemaphoreGive(this->getMutex());
                 sendIncrementedValue();
+                vTaskDelay(pdMS_TO_TICKS(10));
             }
         }
     }
     vTaskDelay(pdMS_TO_TICKS(10)); // Small delay to yield to other tasks
+}
+
+void UsbHidDevice::othertaskLoop()
+{
+    while (1)
+    {
+        xSemaphoreTake(this->getMutex(), pdMS_TO_TICKS(10));
+        for (int i = 10; i < 37; ++i)
+        {
+            this->payload_data_[i] = 12+i; // current tick time or any other data
+        }
+        xSemaphoreGive(this->getMutex());
+        vTaskDelay(pdMS_TO_TICKS(10)); // Small delay to yield to other tasks
+    }
 }

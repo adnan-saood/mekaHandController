@@ -20,6 +20,7 @@ public:
     UsbHidDevice();
     void init(); // Initializes GPIO and TinyUSB
     void taskLoop(); // Main loop for sending and receiving
+    void othertaskLoop();
 
     // Method to handle incoming SET_REPORT (Output Report from PC)
     // This will be called by the tud_hid_set_report_cb extern "C" function.
@@ -37,5 +38,6 @@ private:
     SemaphoreHandle_t mutex_; // Mutex for thread-safe access to class members
     uint8_t received_value_[10] = {0};      // Stores the last value received from PC
     uint8_t value_to_send_back_;  // Stores the value to send back to PC
+    uint8_t payload_data_[37] = {0}; // Buffer to hold the payload data
     bool    new_value_available_; // Flag to indicate a new value needs to be sent back
 };

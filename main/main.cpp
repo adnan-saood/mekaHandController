@@ -43,4 +43,16 @@ extern "C" void app_main(void) {
         5,                // Priority of the task (adjust as needed, higher is more urgent)
         NULL              // Task handle (we don't need to store it for this example)
     );
+
+    xTaskCreate(
+        [](void* arg) {
+            // Cast the argument back to UsbHidDevice* and call its other task loop method
+            static_cast<UsbHidDevice*>(arg)->othertaskLoop();
+        },
+        "usb_hid_other_task", // Name of the task
+        8192,                 // Stack size (in bytes, adjust if needed based on usage)
+        &myHidDevice,         // Parameter to pass to the task (our UsbHidDevice instance)
+        5,                    // Priority of the task (adjust as needed, higher is more urgent)
+        NULL                  // Task handle (we don't need to store it for this example)
+    );
 }
