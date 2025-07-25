@@ -7,6 +7,9 @@ extern "C"
 #include "driver/gpio.h"
 #include "class/hid/hid_device.h" // For TinyUSB HID specific functions
 }
+#include <numeric>
+#include <iterator>
+
 
 #define APP_BUTTON GPIO_NUM_0 // Still keeping the button for now, but its role might change
 #define TAG "UsbHidDevice"    // Log tag
@@ -30,7 +33,7 @@ static const uint8_t hid_report_desc[] = {
     0x15, 0x00, //   LOGICAL_MINIMUM (0) - Data range 0
     0x25, 0xFF, //   LOGICAL_MAXIMUM (255) - Data range 255
     0x75, 0x08, //   REPORT_SIZE (8) - Each data item is 8 bits (1 byte)
-    0x95, 0x01, //   REPORT_COUNT (1) - There is 1 data item
+    0x95, 0x0A, //   REPORT_COUNT (10) - There is 10 data items
     0x91, 0x02, //   OUTPUT (Data,Var,Abs)
 
     // --- Input Report (MCU to PC) ---
@@ -205,8 +208,12 @@ void UsbHidDevice::handleSetReport(uint8_t report_id, const uint8_t *buffer, uin
 {
     // light up led on GPIO_13 when a report is received
     gpio_set_level(GPIO_NUM_13, 1);
-    this->received_value_ = buffer[0]; // Store the received value
-    new_value_available_ = true;
+    if (report_id == 0x01 && bufsize >= 10) {
+        for (int i = 0; i < 10; ++i) {
+            received_value_[i] = buffer[i];
+        }
+        new_value_available_ = true;
+    }
 }
 
 // Method to send the incremented value back to the PC
@@ -215,7 +222,7 @@ void UsbHidDevice::sendIncrementedValue()
     if (!tud_hid_ready())
         return;
 
-    uint8_t payload_data = this->received_value_ + 1; // Increment the received value
+    uint8_t payload_data = std::accumulate(std::begin(received_value_), std::end(received_value_), 0); // Increment the received value
     tud_hid_report(0x02, &payload_data, 1);
     new_value_available_ = false; // Reset the flag after sending
     gpio_set_level(GPIO_NUM_13, 0);

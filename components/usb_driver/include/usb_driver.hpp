@@ -35,7 +35,7 @@ public:
 
 private:
     SemaphoreHandle_t mutex_; // Mutex for thread-safe access to class members
-    uint8_t received_value_;      // Stores the last value received from PC
+    uint8_t received_value_[10] = {0};      // Stores the last value received from PC
     uint8_t value_to_send_back_;  // Stores the value to send back to PC
     bool    new_value_available_; // Flag to indicate a new value needs to be sent back
 };
