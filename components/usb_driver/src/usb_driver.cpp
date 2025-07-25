@@ -33,7 +33,7 @@ static const uint8_t hid_report_desc[] = {
     0x15, 0x00, //   LOGICAL_MINIMUM (0) - Data range 0
     0x25, 0xFF, //   LOGICAL_MAXIMUM (255) - Data range 255
     0x75, 0x08, //   REPORT_SIZE (8) - Each data item is 8 bits (1 byte)
-    0x95, 0x0A, //   REPORT_COUNT (10) - There is 10 data items
+    0x95, 0x0A, //   REPORT_COUNT (10) - There is 10 data items [5 poses and 5 stiffness values]
     0x91, 0x02, //   OUTPUT (Data,Var,Abs)
 
     // --- Input Report (MCU to PC) ---
@@ -44,7 +44,7 @@ static const uint8_t hid_report_desc[] = {
     0x15, 0x00, //   LOGICAL_MINIMUM (0)
     0x25, 0xFF, //   LOGICAL_MAXIMUM (255)
     0x75, 0x08, //   REPORT_SIZE (8) - Each data item is 8 bits
-    0x95, 0x01, //   REPORT_COUNT (1) - There is 1 data item
+    0x95, 0x25, //   REPORT_COUNT (37) - There is 1 data item [5 Poses and 5 Velocities and 5 Forces and 4 quaternion values and 5 MA3 Encoder values and 13 ADC values]
     0x81, 0x02, //   INPUT (Data,Var,Abs)
 
     0xC0 // END_COLLECTION
@@ -222,8 +222,13 @@ void UsbHidDevice::sendIncrementedValue()
     if (!tud_hid_ready())
         return;
 
-    uint8_t payload_data = std::accumulate(std::begin(received_value_), std::end(received_value_), 0); // Increment the received value
-    tud_hid_report(0x02, &payload_data, 1);
+    // Prepare a buffer with numbers 1 to 37
+    uint8_t payload_data[37];
+    for (uint8_t i = 0; i < 37; ++i) {
+        payload_data[i] = i + 1;
+    }
+
+    tud_hid_report(0x02, payload_data, sizeof(payload_data));
     new_value_available_ = false; // Reset the flag after sending
     gpio_set_level(GPIO_NUM_13, 0);
 }
