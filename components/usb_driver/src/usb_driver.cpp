@@ -32,7 +32,7 @@ static const uint8_t hid_report_desc[] = {
     0x15, 0x00, //   LOGICAL_MINIMUM (0) - Data range 0
     0x25, 0xFF, //   LOGICAL_MAXIMUM (255) - Data range 255
     0x75, 0x08, //   REPORT_SIZE (8) - Each data item is 8 bits (1 byte)
-    0x95, 0x0A, //   REPORT_COUNT (10) - There is 10 data items [5 poses and 5 stiffness values]
+    0x95, 0x0F, //   REPORT_COUNT (15) - There is 15 data byte items [5 timestamp + 5 poses + 5 stiffness values]
     0x91, 0x02, //   OUTPUT (Data,Var,Abs)
 
     // --- Input Report (MCU to PC) ---
@@ -43,7 +43,8 @@ static const uint8_t hid_report_desc[] = {
     0x15, 0x00, //   LOGICAL_MINIMUM (0)
     0x25, 0xFF, //   LOGICAL_MAXIMUM (255)
     0x75, 0x08, //   REPORT_SIZE (8) - Each data item is 8 bits
-    0x95, 0x25, //   REPORT_COUNT (37) - There is 1 data item [5 Poses and 5 Velocities and 5 Forces and 4 quaternion values and 5 MA3 Encoder values and 13 ADC values]
+    0x95, 0x25, //   REPORT_COUNT (37) - There is 1 data item
+    // [5 Poses and 5 Velocities and 5 Forces and 4 quaternion values and 5 MA3 Encoder values and 13 ADC values]
     0x81, 0x02, //   INPUT (Data,Var,Abs)
 
     0xC0 // END_COLLECTION
@@ -135,20 +136,21 @@ UsbHidDevice::UsbHidDevice() : received_value_(0),
                                value_to_send_back_(0),
                                new_value_available_(false)
 {
-    mutex_ = xSemaphoreCreateMutex();
-    if (mutex_ == NULL)
-    {
-        ESP_LOGE(TAG, "Failed to create mutex");
-        gpio_set_level(GPIO_NUM_13, 1);
-        vTaskDelay(pdMS_TO_TICKS(200)); // Keep LED on for a short duration
-        gpio_set_level(GPIO_NUM_13, 0);
-        vTaskDelay(pdMS_TO_TICKS(100)); // Keep LED on for a short duration
-    }
+    mutex_ = nullptr;
+    data_mutex_ = nullptr;
 }
 
 void UsbHidDevice::init()
 {
+    mutex_ = xSemaphoreCreateMutex();
+    if (mutex_ == NULL)
+        ESP_LOGE(TAG, "Failed to create mutex");
+
+    data_mutex_ = xSemaphoreCreateMutex();
+    if (data_mutex_ == NULL)
+        ESP_LOGE(TAG, "Failed to create data_mutex_");
     // 1. Initialize GPIO
+
     const gpio_config_t btn_cfg = {
         .pin_bit_mask = BIT64(APP_BUTTON),
         .mode = GPIO_MODE_INPUT,
@@ -207,69 +209,81 @@ void UsbHidDevice::handleSetReport(uint8_t report_id, const uint8_t *buffer, uin
 {
     // light up led on GPIO_13 when a report is received
     gpio_set_level(GPIO_NUM_13, 1);
-    if (report_id == 0x01 && bufsize >= 10)
+    if (report_id == 0x01 && bufsize >= 15)
     {
-        for (int i = 0; i < 10; ++i)
+        for (int i = 0; i < 15; ++i)
         {
             received_value_[i] = buffer[i];
         }
         new_value_available_ = true;
     }
 }
-
-// Method to send the incremented value back to the PC
 void UsbHidDevice::sendIncrementedValue()
 {
     if (!tud_hid_ready())
-        return;
-
-    uint8_t payload_data[37];
-    xSemaphoreTake(mutex_, portMAX_DELAY);
-    // Fill the payload_data with incremented values or any other data you want to send
-    for (int i = 0; i < 37; ++i)
     {
-        payload_data[i] = payload_data_[i]; // Example: fill with incremented values
+        return;
     }
-    xSemaphoreGive(mutex_);
 
-    tud_hid_report(0x02, payload_data, sizeof(payload_data));
-    new_value_available_ = false; // Reset the flag after sending
-    gpio_set_level(GPIO_NUM_13, 0);
+    uint8_t local_payload[37]; // A local buffer for the report
+
+    // --- Start of Critical Section ---
+    if (xSemaphoreTake(this->mutex_, pdMS_TO_TICKS(10)))
+    {
+
+        memcpy(local_payload, payload_data_, sizeof(local_payload));
+
+        // 3. Update the flag inside the lock
+        this->new_value_available_ = false;
+
+        xSemaphoreGive(this->mutex_);
+        // --- End of Critical Section ---
+
+        // 4. Send the report using the local copy *after* releasing the lock
+        tud_hid_report(0x02, local_payload, sizeof(local_payload));
+    }
 }
 
-// Main task loop
 void UsbHidDevice::taskLoop()
 {
     while (1)
     {
-        if (tud_mounted())
+        // Check the flag without holding the lock.
+        // A local copy is made to prevent race conditions during the check.
+        bool is_new_value_available = false;
+        if (xSemaphoreTake(this->mutex_, pdMS_TO_TICKS(10)) == pdTRUE)
         {
-            if (new_value_available_)
+            is_new_value_available = new_value_available_;
+            for (int i = 0; i < 10; ++i)
             {
-                xSemaphoreTake(this->getMutex(), pdMS_TO_TICKS(10));
-                for (int i = 0; i < 10; ++i)
-                {
-                    payload_data_[i] = i;
-                }
-                xSemaphoreGive(this->getMutex());
-                sendIncrementedValue();
-                vTaskDelay(pdMS_TO_TICKS(10));
+                this->payload_data_[i] = i; // Update the shared buffer
             }
+            xSemaphoreGive(this->mutex_);
         }
+
+        if (tud_mounted() && is_new_value_available)
+        {
+            sendIncrementedValue();
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
-    vTaskDelay(pdMS_TO_TICKS(10)); // Small delay to yield to other tasks
 }
 
 void UsbHidDevice::othertaskLoop()
 {
     while (1)
     {
-        xSemaphoreTake(this->getMutex(), pdMS_TO_TICKS(10));
-        for (int i = 10; i < 37; ++i)
-        {
-            this->payload_data_[i] = 12+i; // current tick time or any other data
+        // Only write to payload_data_ if we successfully take the mutex
+        if (xSemaphoreTake(this->getMutex(), pdMS_TO_TICKS(10))) {
+            for (int i = 10; i < 37; ++i)
+            {
+                this->payload_data_[i] = 12 + i; // current tick time or any other data
+            }
+            xSemaphoreGive(this->getMutex());
+        } else {
+            ESP_LOGW(TAG, "othertaskLoop: Failed to take mutex!");
         }
-        xSemaphoreGive(this->getMutex());
         vTaskDelay(pdMS_TO_TICKS(10)); // Small delay to yield to other tasks
     }
 }

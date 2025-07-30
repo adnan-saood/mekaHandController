@@ -18,6 +18,11 @@ extern "C" void app_main(void) {
     // usb.init();
     // xTaskCreate([](void*) { usb.taskLoop(); }, "usb_loop", 4096, nullptr, 5, nullptr);
 
+    // Init CDC through UART0 and print a message
+    ESP_LOGI(TAG, "Starting USB HID device...");
+    printf("USB HID device starting...\n");
+
+
 
         // 1. Create an instance of your UsbHidDevice class
     UsbHidDevice myHidDevice;
@@ -55,4 +60,11 @@ extern "C" void app_main(void) {
         5,                    // Priority of the task (adjust as needed, higher is more urgent)
         NULL                  // Task handle (we don't need to store it for this example)
     );
+
+    while(1)
+    {
+        // Main loop can be used for other tasks or just to keep the app running
+        vTaskDelay(pdMS_TO_TICKS(1000)); // Delay to prevent busy-waiting
+        ESP_LOGI(TAG, "Main loop running...");
+    }
 }
