@@ -15,6 +15,10 @@ class UsbHidDevice;
 // This allows the extern "C" TinyUSB callbacks to access your C++ object.
 extern UsbHidDevice* g_usb_hid_device_instance;
 
+/*
+OUTPUT: [5 timestamp + 5 poses + 5 stiffness values]
+*/
+
 class UsbHidDevice {
 public:
     UsbHidDevice();
@@ -33,6 +37,8 @@ public:
     // These allow the C callbacks to safely access private members.
     SemaphoreHandle_t getMutex() { return mutex_; }
     uint8_t* getValueToSendBack() { return payload_data_; }
+
+    
 
     void updateRTC();
 
