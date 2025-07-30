@@ -57,6 +57,5 @@ extern "C" void app_main(void)
     while (1)
     {
         vTaskDelay(pdMS_TO_TICKS(1000)); // Delay to prevent busy-waiting
-        ESP_LOGI(TAG, "Main loop running...");
     }
 }
