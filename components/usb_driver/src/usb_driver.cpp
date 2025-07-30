@@ -10,14 +10,9 @@ extern "C"
 #include <numeric>
 #include <iterator>
 
-#define APP_BUTTON GPIO_NUM_0 // Still keeping the button for now, but its role might change
-#define TAG "UsbHidDevice"    // Log tag
+#define APP_BUTTON GPIO_NUM_0 
+#define TAG "UsbHid"   // Log tag
 
-// --- HID Report Descriptor for our custom 1-byte input/output ---
-// Output Report (PC to MCU) - Report ID 1
-//   Data: 1 byte (0-255)
-// Input Report (MCU to PC) - Report ID 2
-//   Data: 1 byte (0-255)
 static const uint8_t hid_report_desc[] = {
     0x06, 0x00, 0xFF, // USAGE_PAGE (Vendor Defined Page 1) - Custom page (0xFF00)
     0x09, 0x01,       // USAGE (Vendor Usage 1) - General device usage
@@ -50,11 +45,7 @@ static const uint8_t hid_report_desc[] = {
     0xC0 // END_COLLECTION
 };
 
-// --- USB Configuration Descriptor ---
-// For a HID device, this defines the interface and its associated endpoint.
-// TUD_HID_DESCRIPTOR(_itfnum, _stridx, _boot_protocol, _report_desc_len, _epin, _epsize, _ep_interval)
-// The _epin should be an IN endpoint address (e.g., 0x81 for EP1 IN).
-// _epsize is the max packet size for the endpoint, often CFG_TUD_HID_EP_BUFSIZE (default 64)
+
 static const uint8_t hid_cfg_desc[] = {
     TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
     TUD_HID_DESCRIPTOR(0, 4, false, sizeof(hid_report_desc), 0x81, CFG_TUD_HID_EP_BUFSIZE, 10) // Fixed arguments here
@@ -70,13 +61,10 @@ static const char *hid_str_desc[] = {
 };
 
 // --- Global UsbHidDevice instance pointer ---
-// This is the bridge between the C-style TinyUSB callbacks and your C++ class.
 UsbHidDevice *g_usb_hid_device_instance = nullptr;
 
 // --- Global TinyUSB Callbacks (extern "C" to be compatible with TinyUSB C API) ---
 
-// Invoked when received GET HID REPORT DESCRIPTOR request
-// Application returns pointer to descriptor
 extern "C" const uint8_t *tud_hid_descriptor_report_cb(uint8_t instance)
 {
     (void)instance; // Unused parameter
@@ -221,25 +209,13 @@ void UsbHidDevice::handleSetReport(uint8_t report_id, const uint8_t *buffer, uin
 void UsbHidDevice::sendIncrementedValue()
 {
     if (!tud_hid_ready())
-    {
         return;
-    }
-
-    uint8_t local_payload[37]; // A local buffer for the report
-
-    // --- Start of Critical Section ---
+    uint8_t local_payload[37];
     if (xSemaphoreTake(this->mutex_, pdMS_TO_TICKS(10)))
     {
-
         memcpy(local_payload, payload_data_, sizeof(local_payload));
-
-        // 3. Update the flag inside the lock
         this->new_value_available_ = false;
-
         xSemaphoreGive(this->mutex_);
-        // --- End of Critical Section ---
-
-        // 4. Send the report using the local copy *after* releasing the lock
         tud_hid_report(0x02, local_payload, sizeof(local_payload));
     }
 }
@@ -248,8 +224,6 @@ void UsbHidDevice::taskLoop()
 {
     while (1)
     {
-        // Check the flag without holding the lock.
-        // A local copy is made to prevent race conditions during the check.
         bool is_new_value_available = false;
         if (xSemaphoreTake(this->mutex_, pdMS_TO_TICKS(10)) == pdTRUE)
         {
@@ -262,9 +236,7 @@ void UsbHidDevice::taskLoop()
         }
 
         if (tud_mounted() && is_new_value_available)
-        {
             sendIncrementedValue();
-        }
 
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -275,15 +247,16 @@ void UsbHidDevice::othertaskLoop()
     while (1)
     {
         // Only write to payload_data_ if we successfully take the mutex
-        if (xSemaphoreTake(this->getMutex(), pdMS_TO_TICKS(10))) {
+        if (xSemaphoreTake(this->getMutex(), pdMS_TO_TICKS(10)))
+        {
             for (int i = 10; i < 37; ++i)
-            {
-                this->payload_data_[i] = 12 + i; // current tick time or any other data
-            }
+                this->payload_data_[i] = 12 + i;
+
             xSemaphoreGive(this->getMutex());
-        } else {
-            ESP_LOGW(TAG, "othertaskLoop: Failed to take mutex!");
         }
+        else
+            ESP_LOGW(TAG, "othertaskLoop: Failed to take mutex!");
+
         vTaskDelay(pdMS_TO_TICKS(10)); // Small delay to yield to other tasks
     }
 }
