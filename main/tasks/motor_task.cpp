@@ -7,6 +7,7 @@ extern "C"
 }
 
 PIDFFController MotorTask::controllers[NUM_MOTORS];
+PIDFFController MotorTask::motor[NUM_MOTORS];
 
 void MotorTask::start()
 {
@@ -38,7 +39,12 @@ void MotorTask::controlLoop()
 
             float output_pwm = controllers[i].compute(desired_position, current_position, current_velocity);
 
-            // Stub: send PWM signal to motor driver here
-            // printf("[Motor %d] PWM Output: %.2f\n", i, output_pwm);
+
         }
     }
+
+
+void MotorTask::initMotorDrivers()
+{
+    
+}

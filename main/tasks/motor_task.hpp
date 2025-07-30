@@ -48,6 +48,8 @@ class MotorTask
 public:
     MotorTask(const char *name, uint32_t stackSize, UBaseType_t priority)
         : taskName(name), stackSize(stackSize), priority(priority) {}
+
+    void initMotorDrivers();
     void start();
 
 private:
@@ -56,6 +58,7 @@ private:
     static void controlLoop();
 
     static PIDFFController controllers[NUM_MOTORS];
+    static MotorDriver motor[NUM_MOTORS];
     const char *taskName;
     uint32_t stackSize;
     UBaseType_t priority;
