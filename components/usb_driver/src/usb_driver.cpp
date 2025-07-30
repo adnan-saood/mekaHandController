@@ -204,7 +204,7 @@ void UsbHidDevice::handleSetReport(uint8_t report_id, const uint8_t *buffer, uin
         }
     }
 }
-void UsbHidDevice::sendIncrementedValue()
+void UsbHidDevice::sendData()
 {
     if (!tud_hid_ready())
         return;
@@ -230,7 +230,7 @@ void UsbHidDevice::taskLoop()
         }
 
         if (tud_mounted() && is_new_value_available)
-            sendIncrementedValue();
+            sendData();
 
         vTaskDelay(pdMS_TO_TICKS(10));
     }

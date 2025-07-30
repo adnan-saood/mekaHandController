@@ -27,7 +27,7 @@ public:
     void handleSetReport(uint8_t report_id, const uint8_t* buffer, uint16_t bufsize);
 
     // Method to send an incremented value back to the PC (Input Report)
-    void sendIncrementedValue();
+    void sendData();
 
     // Public getters for mutex and data, specifically for extern "C" callbacks
     // These allow the C callbacks to safely access private members.
