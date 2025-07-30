@@ -6,10 +6,15 @@ extern "C"
 #include "driver/ledc.h"
 }
 
-MotorDriver::MotorDriver(gpio_num_t pwmA, gpio_num_t pwmB)
+MotorDriver::MotorDriver(gpio_num_t pwmA,
+    uint8_t pwmA_channel,
+    gpio_num_t pwmB,
+    uint8_t pwmB_channel)
 {
     this->gpio_pwmA = pwmA;
     this->gpio_pwmB = pwmB;
+    this->pwmA_channel_num = pwmA_channel;
+    this->pwmB_channel_num = pwmB_channel;
 
     // Prepare and then apply the LEDC PWM timer configuration
     ledc_timer_config_t ledc_timer = {
@@ -27,7 +32,7 @@ void MotorDriver::init()
     ledc_channel_config_t pwmA_channel = {
         .gpio_num = this->gpio_pwmA,
         .speed_mode = LEDC_MODE,
-        .channel = LEDC_CHANNEL_0,
+        .channel = static_cast<ledc_channel_t>(this->pwmA_channel_num),
         .intr_type = LEDC_INTR_DISABLE,
         .timer_sel = LEDC_TIMER,
         .duty = 0, // Set duty to 0%
@@ -38,7 +43,7 @@ void MotorDriver::init()
     ledc_channel_config_t pwmB_channel = {
         .gpio_num = this->gpio_pwmB,
         .speed_mode = LEDC_MODE,
-        .channel = LEDC_CHANNEL_1,
+        .channel = static_cast<ledc_channel_t>(this->pwmB_channel_num),
         .intr_type = LEDC_INTR_DISABLE,
         .timer_sel = LEDC_TIMER,
         .duty = 0, // Set duty to 0%

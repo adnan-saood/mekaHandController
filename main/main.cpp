@@ -51,7 +51,7 @@ extern "C" void app_main(void)
         5,              // Priority of the task (adjust as needed, higher is more urgent)
         NULL            // Task handle (we don't need to store it for this example)
     );
-    MotorDriver motor(GPIO_NUM_5, GPIO_NUM_6);
+    MotorDriver motor(GPIO_NUM_5, 0, GPIO_NUM_6, 1);
     motor.init();
     motor.setPWM(0.5f); // Set a test PWM value, adjust as needed
     while (1)
