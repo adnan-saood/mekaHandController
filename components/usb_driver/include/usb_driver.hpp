@@ -32,15 +32,14 @@ public:
     // Public getters for mutex and data, specifically for extern "C" callbacks
     // These allow the C callbacks to safely access private members.
     SemaphoreHandle_t getMutex() { return mutex_; }
-    uint8_t getValueToSendBack() { return value_to_send_back_; }
+    uint8_t* getValueToSendBack() { return payload_data_; }
 
     void updateRTC();
 
-private:
+    private:
     SemaphoreHandle_t mutex_; // Mutex for thread-safe access to class members
-    SemaphoreHandle_t data_mutex_;
     uint8_t received_packet_[15] = {0};      // Stores the last value received from PC
-    uint8_t value_to_send_back_;  // Stores the value to send back to PC
     uint8_t payload_data_[37] = {0}; // Buffer to hold the payload data
+    SemaphoreHandle_t data_mutex_;
     bool    new_value_available_; // Flag to indicate a new value needs to be sent back
 };

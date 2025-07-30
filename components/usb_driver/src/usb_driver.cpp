@@ -83,7 +83,7 @@ extern "C" uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, h
     {
         if (xSemaphoreTake(g_usb_hid_device_instance->getMutex(), pdMS_TO_TICKS(10)))
         {
-            buffer[0] = g_usb_hid_device_instance->getValueToSendBack();
+            memccpy(buffer,  g_usb_hid_device_instance->getValueToSendBack(), 0, sizeof(g_usb_hid_device_instance->getValueToSendBack()));
             xSemaphoreGive(g_usb_hid_device_instance->getMutex());
             return 1; // Indicate 1 byte of data provided
         }
@@ -120,7 +120,6 @@ extern "C" void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_r
 // --- UsbHidDevice Class Implementation ---
 
 UsbHidDevice::UsbHidDevice() : received_packet_(0),
-                               value_to_send_back_(0),
                                new_value_available_(false)
 {
     mutex_ = nullptr;
@@ -194,13 +193,9 @@ void UsbHidDevice::init()
 // This method is called by the extern "C" tud_hid_set_report_cb
 void UsbHidDevice::handleSetReport(uint8_t report_id, const uint8_t *buffer, uint16_t bufsize)
 {
-    // light up led on GPIO_13 when a report is received
     if (report_id == 0x01 && bufsize >= 15)
     {
-        for (int i = 0; i < 15; ++i)
-        {
-            received_packet_[i] = buffer[i];
-        }
+        memcpy(received_packet_, buffer, 15);
     }
 }
 void UsbHidDevice::sendData()
@@ -211,7 +206,6 @@ void UsbHidDevice::sendData()
     if (xSemaphoreTake(this->mutex_, pdMS_TO_TICKS(10)))
     {
         memcpy(local_payload, payload_data_, sizeof(local_payload));
-        this->new_value_available_ = false;
         xSemaphoreGive(this->mutex_);
         tud_hid_report(0x02, local_payload, sizeof(local_payload));
     }
@@ -221,14 +215,7 @@ void UsbHidDevice::taskLoop()
 {
     while (1)
     {
-        bool is_new_value_available = false;
-        if (xSemaphoreTake(this->mutex_, pdMS_TO_TICKS(10)) == pdTRUE)
-        {
-            is_new_value_available = new_value_available_;
-            xSemaphoreGive(this->mutex_);
-        }
-
-        if (tud_mounted() && is_new_value_available)
+        if (tud_mounted())
             sendData();
 
         vTaskDelay(pdMS_TO_TICKS(10));
