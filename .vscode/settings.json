@@ -20,6 +20,6 @@
   "ros.distro": "humble",
   "idf.espIdfPathWin": "C:\\Users\\adnan\\esp\\v5.4.2\\esp-idf",
   "idf.toolsPathWin": "C:\\Users\\adnan\\.espressif",
-  "idf.portWin": "COM7",
-  "idf.monitorPort": "COM7"
+  "idf.portWin": "COM5",
+  "idf.monitorPort": "COM5"
 }

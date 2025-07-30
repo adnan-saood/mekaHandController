@@ -1,24 +1,58 @@
 
+extern "C" {
 #include <stdio.h>
-#include "driver/ledc.h"
-#include "esp_err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/gpio.h"
+#include "esp_log.h"
+    // #include "usb_driver_callbacks.h"
+}
+
+#include "usb_driver.hpp"
+
+#define APP_BUTTON GPIO_NUM_0
+static const char *TAG = "main";
+
+extern "C" void app_main(void) {
+    // static UsbHidDevice usb;
+    // usb.init();
+    // xTaskCreate([](void*) { usb.taskLoop(); }, "usb_loop", 4096, nullptr, 5, nullptr);
+
+    // Init CDC through UART0 and print a message
+    ESP_LOGI(TAG, "Starting USB HID device...");
+    printf("USB HID device starting...\n");
 
 
-#define LEDC_TIMER              LEDC_TIMER_0
-#define LEDC_MODE               LEDC_LOW_SPEED_MODE
-#define LEDC_OUTPUT_IO          (5) // Define the output GPIO
-#define LEDC_CHANNEL            LEDC_CHANNEL_0
-#define LEDC_DUTY_RES           LEDC_TIMER_13_BIT // Set duty resolution to 13 bits
-#define LEDC_DUTY               (4096) // Set duty to 50%. (2 ** 13) * 50% = 4096
-#define LEDC_FREQUENCY          (4000) // Frequency in Hertz. Set frequency at 4 kHz
 
-#include "tasks/logger_task.hpp"
-extern "C" void app_main(void)
-{
-    //No operation.
-    printf("Motor Control Example\n");
+        // 1. Create an instance of your UsbHidDevice class
+    UsbHidDevice myHidDevice;
 
-    LoggerTask loggerTask;
-    loggerTask.start();
+    // 2. Assign the address of your instance to the global pointer
+    // This is crucial for the extern "C" TinyUSB callbacks to function correctly.
+    g_usb_hid_device_instance = &myHidDevice;
 
+    // 3. Initialize the USB HID device
+    // This sets up GPIO and installs the TinyUSB driver.
+    myHidDevice.init();
+
+    // 4. Create a FreeRTOS task to run the device's main loop
+    // The taskLoop() method contains the infinite loop for handling USB events and button presses.
+    xTaskCreate(
+        [](void* arg) {
+            // Cast the argument back to UsbHidDevice* and call its taskLoop() method
+            static_cast<UsbHidDevice*>(arg)->taskLoop();
+        },
+        "usb_hid_task",   // Name of the task
+        8192,             // Stack size (in bytes, adjust if needed based on usage)
+        &myHidDevice,     // Parameter to pass to the task (our UsbHidDevice instance)
+        5,                // Priority of the task (adjust as needed, higher is more urgent)
+        NULL              // Task handle (we don't need to store it for this example)
+    );
+
+    while(1)
+    {
+        // Main loop can be used for other tasks or just to keep the app running
+        vTaskDelay(pdMS_TO_TICKS(1000)); // Delay to prevent busy-waiting
+        ESP_LOGI(TAG, "Main loop running...");
+    }
 }
