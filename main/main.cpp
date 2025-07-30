@@ -1,5 +1,6 @@
 
-extern "C" {
+extern "C"
+{
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -10,10 +11,13 @@ extern "C" {
 
 #include "usb_driver.hpp"
 
+#include "motor_driver.hpp"
+
 #define APP_BUTTON GPIO_NUM_0
 static const char *TAG = "main";
 
-extern "C" void app_main(void) {
+extern "C" void app_main(void)
+{
     // static UsbHidDevice usb;
     // usb.init();
     // xTaskCreate([](void*) { usb.taskLoop(); }, "usb_loop", 4096, nullptr, 5, nullptr);
@@ -22,9 +26,7 @@ extern "C" void app_main(void) {
     ESP_LOGI(TAG, "Starting USB HID device...");
     printf("USB HID device starting...\n");
 
-
-
-        // 1. Create an instance of your UsbHidDevice class
+    // 1. Create an instance of your UsbHidDevice class
     UsbHidDevice myHidDevice;
 
     // 2. Assign the address of your instance to the global pointer
@@ -38,20 +40,22 @@ extern "C" void app_main(void) {
     // 4. Create a FreeRTOS task to run the device's main loop
     // The taskLoop() method contains the infinite loop for handling USB events and button presses.
     xTaskCreate(
-        [](void* arg) {
+        [](void *arg)
+        {
             // Cast the argument back to UsbHidDevice* and call its taskLoop() method
-            static_cast<UsbHidDevice*>(arg)->taskLoop();
+            static_cast<UsbHidDevice *>(arg)->taskLoop();
         },
-        "usb_hid_task",   // Name of the task
-        8192,             // Stack size (in bytes, adjust if needed based on usage)
-        &myHidDevice,     // Parameter to pass to the task (our UsbHidDevice instance)
-        5,                // Priority of the task (adjust as needed, higher is more urgent)
-        NULL              // Task handle (we don't need to store it for this example)
+        "usb_hid_task", // Name of the task
+        8192,           // Stack size (in bytes, adjust if needed based on usage)
+        &myHidDevice,   // Parameter to pass to the task (our UsbHidDevice instance)
+        5,              // Priority of the task (adjust as needed, higher is more urgent)
+        NULL            // Task handle (we don't need to store it for this example)
     );
-
-    while(1)
+    MotorDriver motor(GPIO_NUM_5, GPIO_NUM_6);
+    motor.init();
+    motor.setPWM(0.5f); // Set a test PWM value, adjust as needed
+    while (1)
     {
-        // Main loop can be used for other tasks or just to keep the app running
         vTaskDelay(pdMS_TO_TICKS(1000)); // Delay to prevent busy-waiting
         ESP_LOGI(TAG, "Main loop running...");
     }
