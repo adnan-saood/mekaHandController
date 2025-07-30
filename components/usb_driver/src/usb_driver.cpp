@@ -195,7 +195,9 @@ void UsbHidDevice::handleSetReport(uint8_t report_id, const uint8_t *buffer, uin
 {
     if (report_id == 0x01 && bufsize >= 15)
     {
+        xSemaphoreTake(mutex_, pdMS_TO_TICKS(10));
         memcpy(received_packet_, buffer, 15);
+        xSemaphoreGive(mutex_);
     }
 }
 void UsbHidDevice::sendData()
