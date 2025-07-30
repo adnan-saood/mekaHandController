@@ -196,14 +196,12 @@ void UsbHidDevice::init()
 void UsbHidDevice::handleSetReport(uint8_t report_id, const uint8_t *buffer, uint16_t bufsize)
 {
     // light up led on GPIO_13 when a report is received
-    gpio_set_level(GPIO_NUM_13, 1);
     if (report_id == 0x01 && bufsize >= 15)
     {
         for (int i = 0; i < 15; ++i)
         {
             received_value_[i] = buffer[i];
         }
-        new_value_available_ = true;
     }
 }
 void UsbHidDevice::sendIncrementedValue()
@@ -228,10 +226,6 @@ void UsbHidDevice::taskLoop()
         if (xSemaphoreTake(this->mutex_, pdMS_TO_TICKS(10)) == pdTRUE)
         {
             is_new_value_available = new_value_available_;
-            for (int i = 0; i < 10; ++i)
-            {
-                this->payload_data_[i] = i; // Update the shared buffer
-            }
             xSemaphoreGive(this->mutex_);
         }
 
@@ -239,24 +233,5 @@ void UsbHidDevice::taskLoop()
             sendIncrementedValue();
 
         vTaskDelay(pdMS_TO_TICKS(10));
-    }
-}
-
-void UsbHidDevice::othertaskLoop()
-{
-    while (1)
-    {
-        // Only write to payload_data_ if we successfully take the mutex
-        if (xSemaphoreTake(this->getMutex(), pdMS_TO_TICKS(10)))
-        {
-            for (int i = 10; i < 37; ++i)
-                this->payload_data_[i] = 12 + i;
-
-            xSemaphoreGive(this->getMutex());
-        }
-        else
-            ESP_LOGW(TAG, "othertaskLoop: Failed to take mutex!");
-
-        vTaskDelay(pdMS_TO_TICKS(10)); // Small delay to yield to other tasks
     }
 }
