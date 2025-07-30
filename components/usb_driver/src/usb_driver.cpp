@@ -10,8 +10,8 @@ extern "C"
 #include <numeric>
 #include <iterator>
 
-#define APP_BUTTON GPIO_NUM_0 
-#define TAG "UsbHid"   // Log tag
+#define APP_BUTTON GPIO_NUM_0
+#define TAG "UsbHid" // Log tag
 
 static const uint8_t hid_report_desc[] = {
     0x06, 0x00, 0xFF, // USAGE_PAGE (Vendor Defined Page 1) - Custom page (0xFF00)
@@ -44,7 +44,6 @@ static const uint8_t hid_report_desc[] = {
 
     0xC0 // END_COLLECTION
 };
-
 
 static const uint8_t hid_cfg_desc[] = {
     TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
@@ -120,7 +119,7 @@ extern "C" void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_r
 
 // --- UsbHidDevice Class Implementation ---
 
-UsbHidDevice::UsbHidDevice() : received_value_(0),
+UsbHidDevice::UsbHidDevice() : received_packet_(0),
                                value_to_send_back_(0),
                                new_value_available_(false)
 {
@@ -200,7 +199,7 @@ void UsbHidDevice::handleSetReport(uint8_t report_id, const uint8_t *buffer, uin
     {
         for (int i = 0; i < 15; ++i)
         {
-            received_value_[i] = buffer[i];
+            received_packet_[i] = buffer[i];
         }
     }
 }
@@ -234,4 +233,9 @@ void UsbHidDevice::taskLoop()
 
         vTaskDelay(pdMS_TO_TICKS(10));
     }
+}
+
+void UsbHidDevice::updateRTC()
+{
+  
 }
