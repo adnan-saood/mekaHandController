@@ -1,22 +1,18 @@
 #pragma once
-#include "config.h"
-extern "C" {
 #include "driver/gpio.h"
-}
+#include "driver/mcpwm_prelude.h"
 
 class MotorDriver {
 public:
-    MotorDriver(gpio_num_t pwmA, uint8_t pwmA_channel,
-                gpio_num_t pwmB, uint8_t pwmB_channel);
+    MotorDriver(gpio_num_t pwmA, gpio_num_t pwmB, int mcpwm_group);
     void init();
-    void setPWM(float duty_cycle);  // duty_cycle in [-1.0, 1.0]
+    void setSpeed(float speed);
 
 private:
-    // Private member variables for motor control
-    int pwm_channel;
-    float current_duty_cycle;
-    gpio_num_t gpio_pwmA; // GPIO pin for PWM A
-    gpio_num_t gpio_pwmB; // GPIO pin for PWM B
-    uint8_t pwmA_channel_num;
-    uint8_t pwmB_channel_num;
+    gpio_num_t gpio_pwmA, gpio_pwmB;
+    int mcpwm_group;
+    mcpwm_timer_handle_t timer_handle;
+    mcpwm_oper_handle_t opA_handle, opB_handle;
+    mcpwm_cmpr_handle_t pwmA_cmpr, pwmB_cmpr;
+    mcpwm_gen_handle_t genA_handle, genB_handle;
 };

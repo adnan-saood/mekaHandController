@@ -6,6 +6,7 @@ extern "C"
 #include "freertos/task.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "driver/ledc.h"
     // #include "usb_driver_callbacks.h"
 }
 
@@ -51,9 +52,19 @@ extern "C" void app_main(void)
         5,              // Priority of the task (adjust as needed, higher is more urgent)
         NULL            // Task handle (we don't need to store it for this example)
     );
+
+    // Prepare and then apply the LEDC PWM timer configuration
+    ledc_timer_config_t ledc_timer = {
+        .speed_mode = LEDC_MODE,
+        .duty_resolution = LEDC_DUTY_RES,
+        .timer_num = LEDC_TIMER,
+        .freq_hz = LEDC_FREQUENCY, // Set output frequency at 4 kHz
+        .clk_cfg = LEDC_AUTO_CLK};
+    ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
+
     MotorDriver motor(GPIO_NUM_5, 0, GPIO_NUM_4, 1);
     motor.init();
-    motor.setPWM(0.5f); // Set a test PWM value, adjust as needed
+    motor.setSpeed(0.5f); // Set a test PWM value, adjust as needed
     while (1)
     {
         vTaskDelay(pdMS_TO_TICKS(1000)); // Delay to prevent busy-waiting

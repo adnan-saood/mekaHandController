@@ -46,5 +46,7 @@ void MotorTask::controlLoop()
 
 void MotorTask::initMotorDrivers()
 {
-    
+    for (int i = 0; i < NUM_MOTORS; ++i)
+    {
+    }
 }
