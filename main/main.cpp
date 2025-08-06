@@ -53,18 +53,15 @@ extern "C" void app_main(void)
         NULL            // Task handle (we don't need to store it for this example)
     );
 
-    // Prepare and then apply the LEDC PWM timer configuration
-    ledc_timer_config_t ledc_timer = {
-        .speed_mode = LEDC_MODE,
-        .duty_resolution = LEDC_DUTY_RES,
-        .timer_num = LEDC_TIMER,
-        .freq_hz = LEDC_FREQUENCY, // Set output frequency at 4 kHz
-        .clk_cfg = LEDC_AUTO_CLK};
-    ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
+    // Create MotorDriver for MCPWM unit 0, high side GPIO 5, low side GPIO 18 (example)
+    MotorDriver motor(0, GPIO_NUM_5, GPIO_NUM_18);
 
-    MotorDriver motor(GPIO_NUM_5, 0, GPIO_NUM_4, 1);
-    motor.init();
-    motor.setSpeed(0.5f); // Set a test PWM value, adjust as needed
+    // Initialize the motor driver
+    if (motor.init() == ESP_OK) {
+        // Set speed to 50% forward as a test
+        motor.setSpeed(0.5f);
+    }
+
     while (1)
     {
         vTaskDelay(pdMS_TO_TICKS(1000)); // Delay to prevent busy-waiting
