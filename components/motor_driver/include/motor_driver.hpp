@@ -48,7 +48,6 @@ private:
 
     bool initialized_ = false;
 
-    esp_err_t updatePwm(float speed);
 };
 
 #endif // MOTOR_DRIVER_HPP

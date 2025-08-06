@@ -1,6 +1,6 @@
 // MotorDriver.cpp
 
-#include "MotorDriver.hpp"
+#include "motor_driver.hpp"
 #include "esp_log.h"
 
 static const char* TAG = "MotorDriver";
@@ -86,10 +86,8 @@ esp_err_t MotorDriver::setSpeed(float speed) {
     if (speed >  1.0f) speed =  1.0f;
 
     return updatePwm(speed);
-}
 
-esp_err_t MotorDriver::updatePwm(float speed) {
-    const uint32_t duty_ticks = static_cast<uint32_t>(fabs(speed) * 400); // 400 ticks = 100% duty (25kHz)
+    const uint32_t duty_ticks = static_cast<uint32_t>(fabs(speed) * 1000); // 1000 ticks = 100% duty (25kHz)
 
     if (speed >= 0) {
         ESP_RETURN_ON_ERROR(mcpwm_comparator_set_compare_value(comparator_high_, duty_ticks), TAG, "Set comp high");
