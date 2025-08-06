@@ -8,6 +8,7 @@ extern "C"
 #include "esp_check.h"
 }
 static const char *TAG = "MotorDriver";
+static const char *BLDC_TAG = "MotorDriverBLDC";
 
 MotorDriver::MotorDriver(int mcpwm_unit, gpio_num_t pwm_high_gpio, gpio_num_t pwm_low_gpio)
     : mcpwm_unit_(mcpwm_unit),
@@ -28,9 +29,8 @@ esp_err_t MotorDriver::init()
         .clk_src = MCPWM_TIMER_CLK_SRC_DEFAULT,
         .resolution_hz = 4000000, // 4 MHz
         .count_mode = MCPWM_TIMER_COUNT_MODE_UP,
-        .period_ticks = 1000,     // 4 kHz PWM, 1 tick = 0.25 us
-        .intr_priority = 0
-    };
+        .period_ticks = 1000, // 4 kHz PWM, 1 tick = 0.25 us
+        .intr_priority = 0};
     ESP_RETURN_ON_ERROR(mcpwm_new_timer(&timer_config, &timer_), TAG, "Failed to create timer");
 
     // MCPWM operator
@@ -113,5 +113,38 @@ esp_err_t MotorDriver::setSpeed(float speed)
         ESP_RETURN_ON_ERROR(mcpwm_comparator_set_compare_value(comparator_low_, duty_ticks), TAG, "Set comp low");
     }
 
+    return ESP_OK;
+}
+
+esp_err_t MotorDriverBLDC::setSpeed(float speed)
+{
+    if (!initialized_)
+    {
+        ESP_LOGE(TAG, "MotorDriver not initialized");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    // Ensure speed is within [-1.0, 1.0]
+    if (speed < -1.0f)
+        speed = -1.0f;
+    if (speed > 1.0f)
+        speed = 1.0f;
+
+    // Calculate duty ticks based on speed
+    // Assuming 1000 ticks = 100% duty cycle at 25kHz
+    // Adjust this based on your actual PWM frequency and resolution
+    const uint32_t duty_ticks = static_cast<uint32_t>((speed < 0 ? -speed : speed) * 1000); // 1000 ticks = 100% duty (25kHz)
+
+    // Set comparator values based on speed direction
+    if (speed >= 0)
+    {
+        ESP_RETURN_ON_ERROR(mcpwm_comparator_set_compare_value(comparator_high_, duty_ticks), BLDC_TAG, "Set Speed");
+        ESP_RETURN_ON_ERROR(mcpwm_comparator_set_compare_value(comparator_low_, 0), BLDC_TAG, "Set Direction");
+    }
+    else
+    {
+        ESP_RETURN_ON_ERROR(mcpwm_comparator_set_compare_value(comparator_high_, duty_ticks), BLDC_TAG, "Set Speed");
+        ESP_RETURN_ON_ERROR(mcpwm_comparator_set_compare_value(comparator_low_, 1000), BLDC_TAG, "Set Direction");
+    }
     return ESP_OK;
 }
