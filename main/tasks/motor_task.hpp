@@ -5,6 +5,8 @@ extern "C"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 }
+#include "pin_config.h"
+#include "usb_driver.hpp"
 
 #define NUM_MOTORS 5
 
@@ -50,6 +52,7 @@ public:
         : taskName(name), stackSize(stackSize), priority(priority) {}
 
     void initMotorDrivers();
+    void setUsbHandle(USBDriver *usbDriver) { MotorTask::usbDriver = usbDriver; }
     void start();
 
 private:
@@ -57,8 +60,25 @@ private:
 
     static void controlLoop();
 
-    static PIDFFController controllers[NUM_MOTORS];
-    static MotorDriver motor[NUM_MOTORS];
+    static PIDFFController thumbPanController;
+    static PIDFFController thumbController;
+    static PIDFFController indexController;
+    static PIDFFController middleController;
+    static PIDFFController pinkyController;
+
+    static MotorDriverBLDC* thumbPanMotor;
+    static MotorDriverBLDC* thumbMotor;
+    static MotorDriverBLDC* indexMotor;
+    static MotorDriverBLDC* middleMotor;
+    static MotorDriverBLDC* pinkyMotor;
+
+    // usb communication handle
+    static USBDriver* usbDriver = nullptr;
+
+
+    static std::array<MotorDriver*, NUM_MOTORS> motor;
+    static std::array<PIDFFController*, NUM_MOTORS> controllers;
+
     const char *taskName;
     uint32_t stackSize;
     UBaseType_t priority;
