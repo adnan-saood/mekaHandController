@@ -60,6 +60,9 @@ private:
 
     static void controlLoop();
 
+    static void getSetCommandsFromUSB();
+    static void getCurrentStatefromSensors();
+
     static PIDFFController thumbPanController;
     static PIDFFController thumbController;
     static PIDFFController indexController;
@@ -82,4 +85,11 @@ private:
     const char *taskName;
     uint32_t stackSize;
     UBaseType_t priority;
+
+    float commanded_positions[5];
+    float commanded_stiffness[5];
+
+    float current_positions[5];
+    float current_velocities[5];
+    float current_forces[5];
 };

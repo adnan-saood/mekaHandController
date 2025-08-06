@@ -31,12 +31,9 @@ void MotorTask::taskFunction(void *pvParameters)
     }
 }
 
-void MotorTask::controlLoop()
-{
-    // Get position and velocity commands from USB
-    float commanded_positions[5];
-    float commanded_stiffness[5];
 
+void MotorTask::getSetCommandsFromUSB()
+{
     if (usbDriver != nullptr)
     {
         for (int i = 0; i < NUM_MOTORS; ++i)
@@ -50,6 +47,22 @@ void MotorTask::controlLoop()
         ESP_LOGE("MotorTask", "USB driver not set, cannot control motors.");
         return;
     }
+}
+
+void MotorTask::getCurrentStatefromSensors()
+{
+    current_positions.fill(0.0f);
+    current_velocities.fill(0.0f);
+    current_forces.fill(0.0f);
+}
+
+void MotorTask::controlLoop()
+{
+    // Get position and velocity commands from USB
+    getSetCommandsFromUSB();
+
+    getCurrentStatefromSensors`();
+
 
     for (int i = 0; i < NUM_MOTORS; ++i)
     {
