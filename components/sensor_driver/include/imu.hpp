@@ -23,7 +23,13 @@ class IMU
 public:
     IMU()
     {
-        /* i2c bus configuration */
+
+
+    }
+
+    esp_err_t init()
+    {
+                /* i2c bus configuration */
         ESP_LOGI("IMU", "Initializing I2C for IMU");
         i2c_config_t conf = {};
         conf.mode = I2C_MODE_MASTER;
@@ -38,17 +44,8 @@ public:
         icm0948_config_i2c_t icm_config = {
             .i2c_port = I2C_NUM_0,
             .i2c_addr = ICM_20948_I2C_ADDR_AD0};
-
-        conf_ = conf;
-        icm_config_ = icm_config;
-
-        
-    }
-
-    esp_err_t init()
-    {
-        ESP_ERROR_CHECK(i2c_param_config(icm_config_.i2c_port, &conf_));
-        ESP_ERROR_CHECK(i2c_driver_install(icm_config_.i2c_port, conf_.mode, 0, 0, 0));
+        ESP_ERROR_CHECK(i2c_param_config(icm_config.i2c_port, &conf));
+        ESP_ERROR_CHECK(i2c_driver_install(icm_config.i2c_port, conf.mode, 0, 0, 0));
 
         ESP_LOGI("IMU", "I2C initialized for IMU");
 
@@ -59,7 +56,7 @@ public:
         }
         ESP_LOGI("IMU", "check id passed");
 
-        icm20948_init_i2c(&icm, &icm_config_);
+        icm20948_init_i2c(&icm, &icm_config);
 
         ESP_LOGI("IMU", "ICM20948 initialized");
 
@@ -112,24 +109,21 @@ public:
 				// In case of drift, the sum will not add to 1, therefore, quaternion data need to be corrected with right bias values.
 				// The quaternion data is scaled by 2^30.
 				// Scale to +/- 1
-				double q1 = ((double)data.Quat9.Data.Q1) / 1073741824.0; // Convert to double. Divide by 2^30
-				double q2 = ((double)data.Quat9.Data.Q2) / 1073741824.0; // Convert to double. Divide by 2^30
-				double q3 = ((double)data.Quat9.Data.Q3) / 1073741824.0; // Convert to double. Divide by 2^30
-				double q0 = sqrt(1.0 - ((q1 * q1) + (q2 * q2) + (q3 * q3)));
+                float q1 = static_cast<float>(data.Quat9.Data.Q1) / 1073741824.0f; // Convert to float. Divide by 2^30
+                float q2 = static_cast<float>(data.Quat9.Data.Q2) / 1073741824.0f; // Convert to float. Divide by 2^30
+                float q3 = static_cast<float>(data.Quat9.Data.Q3) / 1073741824.0f; // Convert to float. Divide by 2^30
+                float q0 = sqrtf(1.0f - ((q1 * q1) + (q2 * q2) + (q3 * q3)));
 				//ESP_LOGI(TAG, "Q1: %f Q2: %f Q3: %f Accuracy: %d", q1, q2, q3, data.Quat9.Data.Accuracy);
-                ans.quaternion = {static_cast<float>(q0),
-                                  static_cast<float>(q1),
-                                  static_cast<float>(q2), 
-                                  static_cast<float>(q3)};
+                ans.quaternion = {q0,
+                                  q1,
+                                  q2,
+                                  q3};
 			}
-
 		}
         return ans;
     }
 
 protected:
-    i2c_config_t conf_;
-    icm0948_config_i2c_t icm_config_;
 
     icm20948_device_t icm;
 
@@ -193,8 +187,6 @@ protected:
         else
         {
             ESP_LOGE("IMU", "Enable DMP failed!");
-            while (1)
-                ; // Do nothing more
         }
     }
 };
