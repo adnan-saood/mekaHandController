@@ -21,6 +21,8 @@ extern "C"
 #define APP_BUTTON GPIO_NUM_0
 static const char *TAG = "main";
 
+void HearBeat();
+
 extern "C" void app_main(void)
 {
     // static UsbHidDevice usb;
@@ -60,31 +62,7 @@ extern "C" void app_main(void)
     SensorTask sensorTask(4096, 5);
     sensorTask.start();
 
-    // configure LED 2 to blink in task as a heartbeat
-    const gpio_config_t led_cfg = {
-        .pin_bit_mask = BIT64(LED_D2),
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_ENABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE
-    };
-    gpio_config(&led_cfg);
-    // Main loop to blink the LED as a heartbeat
-    //taskcreate
-    xTaskCreate([](void *arg) {
-        const gpio_num_t ledPin = LED_D2;
-        while (1)
-        {
-            gpio_set_level(ledPin, 1);
-            vTaskDelay(pdMS_TO_TICKS(50)); // LED ON for 500 ms
-            gpio_set_level(ledPin, 0);
-            vTaskDelay(pdMS_TO_TICKS(100)); // LED OFF for 500 ms
-            gpio_set_level(ledPin, 1);
-            vTaskDelay(pdMS_TO_TICKS(50)); // LED ON for 500 ms
-            gpio_set_level(ledPin, 0);
-            vTaskDelay(pdMS_TO_TICKS(600)); // LED OFF for 500 ms
-        }
-    }, "led_blink_task", 2048, NULL, 5, NULL);
+    HearBeat();
 
     while (1)
     {
@@ -107,3 +85,30 @@ extern "C" void app_main(void)
 
 }
 
+void HearBeat()
+{
+    // configure LED 2 to blink in task as a heartbeat
+    const gpio_config_t led_cfg = {
+        .pin_bit_mask = BIT64(LED_D2),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE};
+    gpio_config(&led_cfg);
+    // Main loop to blink the LED as a heartbeat
+    // taskcreate
+    xTaskCreate([](void *arg)
+                {
+        const gpio_num_t ledPin = LED_D2;
+        while (1)
+        {
+            gpio_set_level(ledPin, 1);
+            vTaskDelay(pdMS_TO_TICKS(50)); // LED ON for 500 ms
+            gpio_set_level(ledPin, 0);
+            vTaskDelay(pdMS_TO_TICKS(100)); // LED OFF for 500 ms
+            gpio_set_level(ledPin, 1);
+            vTaskDelay(pdMS_TO_TICKS(50)); // LED ON for 500 ms
+            gpio_set_level(ledPin, 0);
+            vTaskDelay(pdMS_TO_TICKS(600)); // LED OFF for 500 ms
+        } }, "led_blink_task", 2048, NULL, 5, NULL);
+}
