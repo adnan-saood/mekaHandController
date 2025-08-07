@@ -11,8 +11,10 @@ extern "C"
 }
 
 #include "usb_driver.hpp"
+#include <array>
 
 #include "motor_driver.hpp"
+#include "pin_config.h"
 
 #define APP_BUTTON GPIO_NUM_0
 static const char *TAG = "main";
@@ -54,16 +56,36 @@ extern "C" void app_main(void)
     );
 
     // Create MotorDriver for MCPWM unit 0, high side GPIO 5, low side GPIO 18 (example)
-    MotorDriver motor(0, GPIO_NUM_5, GPIO_NUM_18);
+    MotorDriver motor(0, MOTOR_J2_PWM_H, MOTOR_J2_PWM_L);
 
-    // Initialize the motor driver
-    if (motor.init() == ESP_OK) {
+    if (motor.init() == ESP_OK)
+    {
         // Set speed to 50% forward as a test
-        motor.setSpeed(0.5f);
+        motor.setSpeed(0);
     }
 
     while (1)
     {
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Delay to prevent busy-waiting
+        // print current usb poses
+        std::array<float, 5> current_positions;
+        for (size_t i = 0; i < 5; ++i)
+        {
+            current_positions[i] = (g_usb_hid_device_instance->getCommandedPoses(i) - 127.5f) / 255.0f; // Adjusting to a range of [-0.5, 0.5]
+            printf("Current USB poses: ");
+            for (size_t i = 0; i < current_positions.size(); ++i)
+            {
+                printf("%.3f%s", current_positions[i], (i < current_positions.size() - 1) ? ", " : "\n");
+            }
+        }
+        while (current_positions[0] == -0.5f)
+        {
+            current_positions[0] = (g_usb_hid_device_instance->getCommandedPoses(0) - 127.5f) / 255.0f; // Adjusting to a range of [-0.5, 0.5]
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+
+        // Set speed to 50% forward as a test
+        motor.setSpeed(current_positions[0]);
+        // Delay to prevent busy-waiting
+        vTaskDelay(pdMS_TO_TICKS(50)); // Delay to prevent busy-waiting
     }
 }
