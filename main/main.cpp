@@ -33,51 +33,63 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "Starting USB HID device...");
     printf("USB HID device starting...\n");
 
-    // 1. Create an instance of your UsbHidDevice class
-    UsbHidDevice myHidDevice;
+    // // 1. Create an instance of your UsbHidDevice class
+    // UsbHidDevice myHidDevice;
 
-    // 2. Assign the address of your instance to the global pointer
-    // This is crucial for the extern "C" TinyUSB callbacks to function correctly.
-    g_usb_hid_device_instance = &myHidDevice;
+    // // 2. Assign the address of your instance to the global pointer
+    // // This is crucial for the extern "C" TinyUSB callbacks to function correctly.
+    // g_usb_hid_device_instance = &myHidDevice;
 
-    // 3. Initialize the USB HID device
-    // This sets up GPIO and installs the TinyUSB driver.
-    myHidDevice.init();
+    // // 3. Initialize the USB HID device
+    // // This sets up GPIO and installs the TinyUSB driver.
+    // myHidDevice.init();
 
-    // 4. Create a FreeRTOS task to run the device's main loop
-    // The taskLoop() method contains the infinite loop for handling USB events and button presses.
-    xTaskCreate(
-        [](void *arg)
-        {
-            // Cast the argument back to UsbHidDevice* and call its taskLoop() method
-            static_cast<UsbHidDevice *>(arg)->taskLoop();
-        },
-        "usb_hid_task", // Name of the task
-        8192,           // Stack size (in bytes, adjust if needed based on usage)
-        &myHidDevice,   // Parameter to pass to the task (our UsbHidDevice instance)
-        5,              // Priority of the task (adjust as needed, higher is more urgent)
-        NULL            // Task handle (we don't need to store it for this example)
-    );
+    // // 4. Create a FreeRTOS task to run the device's main loop
+    // // The taskLoop() method contains the infinite loop for handling USB events and button presses.
+    // xTaskCreate(
+    //     [](void *arg)
+    //     {
+    //         // Cast the argument back to UsbHidDevice* and call its taskLoop() method
+    //         static_cast<UsbHidDevice *>(arg)->taskLoop();
+    //     },
+    //     "usb_hid_task", // Name of the task
+    //     8192,           // Stack size (in bytes, adjust if needed based on usage)
+    //     &myHidDevice,   // Parameter to pass to the task (our UsbHidDevice instance)
+    //     5,              // Priority of the task (adjust as needed, higher is more urgent)
+    //     NULL            // Task handle (we don't need to store it for this example)
+    // );
 
-    SensorTask sensorTask(4096, 5);
-    sensorTask.start();
 
     HearBeat();
 
+    // IMU imu;
+
+    // imu.init();
+
+    vTaskDelay(pdMS_TO_TICKS(1000)); // Wait for IMU initialization
+    
+
+
+// [5 Poses and 5 Velocities and 5 Forces and 4 quaternion values and 5 MA3 Encoder values and 13 ADC values]
+// [0 : 4] Poses
+    // [5 : 9] Velocities
+    // [10 : 14] Forces
+    // [15 : 18] Quaternion values
+    // [19 : 23] MA3 Encoder values
+    // [24 : 36] ADC values
     while (1)
     {
-        ADCData adcData;
-        sensorTask.getADCData(adcData);
+        // IMUData imuData = imu.read();
 
-        // create a 13 element array of uint8_t with 1.0f == 255
-        std::array<uint8_t, 13> adcValues;
-        for (size_t i = 0; i < ADC_CHANNELS; ++i)
-        {
-            adcValues[i] = static_cast<uint8_t>(adcData.values[i] * 255.0f); // Scale to 0-255
+        int8_t payload[4] = {0};
+         for (size_t i = 0; i < 4; ++i) {
+            // payload[i] = static_cast<int8_t>(imuData.quaternion[i] * 127.0f); // Scale to int8_t range
         }
-        xSemaphoreTake(myHidDevice.getMutex(), pdMS_TO_TICKS(10));
-        memcpy(myHidDevice.getPayloadPointer() + 23, adcValues.data(), 13);
-        xSemaphoreGive(myHidDevice.getMutex());
+
+        // Process IMU data (e.g., send to USB)
+        // xSemaphoreTake(myHidDevice.getMutex(), pdMS_TO_TICKS(10));
+        // memcpy(myHidDevice.getPayloadPointer() + 15, payload, 4);
+        // xSemaphoreGive(myHidDevice.getMutex());
 
         vTaskDelay(pdMS_TO_TICKS(50)); // Delay to prevent busy-waiting
     }

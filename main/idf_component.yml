@@ -15,4 +15,8 @@ dependencies:
   #   # All dependencies of `main` are public by default.
   #   public: true
   espressif/esp_tinyusb: ^1.1
-  cybergear-robotics/icm20948: '*'
+  
+  # add component from github repository
+  adnan-saood/icm20948:
+    git: https://github.com/adnan-saood/icm20948.git
+    version: "*"
