@@ -4,6 +4,7 @@ extern "C" {
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h" // This header defines SemaphoreHandle_t
+#include "driver/gpio.h"
 }
 
 #include <array>

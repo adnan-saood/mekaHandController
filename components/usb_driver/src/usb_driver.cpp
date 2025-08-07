@@ -83,7 +83,7 @@ extern "C" uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, h
     {
         if (xSemaphoreTake(g_usb_hid_device_instance->getMutex(), pdMS_TO_TICKS(10)))
         {
-            memccpy(buffer,  g_usb_hid_device_instance->getValueToSendBack(), 0, sizeof(g_usb_hid_device_instance->getValueToSendBack()));
+            memccpy(buffer,  g_usb_hid_device_instance->getPayloadPointer(), 0, sizeof(g_usb_hid_device_instance->getPayloadPointer()));
             xSemaphoreGive(g_usb_hid_device_instance->getMutex());
             return 1; // Indicate 1 byte of data provided
         }

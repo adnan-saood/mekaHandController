@@ -36,7 +36,7 @@ public:
     // Public getters for mutex and data, specifically for extern "C" callbacks
     // These allow the C callbacks to safely access private members.
     SemaphoreHandle_t getMutex() { return mutex_; }
-    uint8_t* getValueToSendBack() { return payload_data_; }
+    uint8_t* getPayloadPointer() { return payload_data_; }
 
     uint8_t getCommandedPoses(uint8_t motor_index) { 
         if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10))) {

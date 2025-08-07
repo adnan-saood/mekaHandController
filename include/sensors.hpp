@@ -3,7 +3,7 @@
 #include <array>
 #include "config.h"
 
-#define ADC_CHANNELS 10
+#define ADC_CHANNELS 16
 
 struct IMUData {
     std::array<float, 3> accel; // e.g., [accel_x, accel_y, accel_z]
@@ -11,7 +11,7 @@ struct IMUData {
 };
 
 struct ADCData {
-    std::array<float, NUM_MOTORS> values; // e.g., one ADC value per motor
+    std::array<float, ADC_CHANNELS> values; // e.g., one ADC value per motor
 };
 
 struct EncoderData {
