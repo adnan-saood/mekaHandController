@@ -40,7 +40,7 @@ public:
 
     uint8_t getCommandedPoses(uint8_t motor_index) { 
         if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10))) {
-            memcpy(poses_, received_packet_ + 5, sizeof(poses_));
+            memcpy(poses_, received_packet_ + 6, sizeof(poses_));
             xSemaphoreGive(mutex_);
         }
         return poses_[motor_index];
@@ -48,7 +48,7 @@ public:
 
     uint8_t getCommandedStiffness(uint8_t motor_index) {
         if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10))) {
-            memcpy(stiffness_, received_packet_ + 10, sizeof(stiffness_));
+            memcpy(stiffness_, received_packet_ + 11, sizeof(stiffness_));
             xSemaphoreGive(mutex_);
         }
         return stiffness_[motor_index];
@@ -58,7 +58,8 @@ public:
 
     private:
     SemaphoreHandle_t mutex_; // Mutex for thread-safe access to class members
-    uint8_t received_packet_[15] = {0};      // Stores the last value received from PC
+    uint8_t received_packet_[16] = {0};      // Stores the last value received from PC
+    uint8_t timestamp_usb_[6] = {0}; // Stores the timestamp received from PC
     uint8_t payload_data_[37] = {0}; // Buffer to hold the payload data
     uint8_t poses_[5] = {0}; // Stores the commanded poses
     uint8_t stiffness_[5] = {0}; // Stores the commanded stiffness values

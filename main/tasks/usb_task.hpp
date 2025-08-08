@@ -53,6 +53,30 @@ public:
         }
     }
 
+    void startRTCUpdateTask()
+    {
+        ESP_LOGI("UsbTask", "Starting RTC Update Task");
+        BaseType_t result = xTaskCreate(
+            [](void *arg)
+            {
+                auto usb_ = static_cast<UsbHidDevice *>(arg);
+                while (1)
+                {
+                    usb_->updateRTC();
+                    vTaskDelay(pdMS_TO_TICKS(1000)); // Update RTC every second
+                }
+            },
+            "rtc_update_task", // Name of the task
+            2048,              // Stack size (in bytes, adjust if needed based on usage)
+            _usb,              // Parameter to pass to the task (our UsbHidDevice instance)
+            5,                 // Priority of the task (adjust as needed, higher is more urgent)
+            nullptr            // No need to capture the task handle for this one
+        );
+        if (result != pdPASS) {
+            ESP_LOGE("UsbTask", "Failed to create RTC update task");
+        }   
+    }
+
 private:
     static void taskFunction(void *arg);
     TaskHandle_t taskHandle;

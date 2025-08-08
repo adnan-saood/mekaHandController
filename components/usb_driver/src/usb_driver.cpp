@@ -6,12 +6,27 @@ extern "C"
 {
 #include "driver/gpio.h"
 #include "class/hid/hid_device.h" // For TinyUSB HID specific functions
+#include <time.h>
+#include <sys/time.h>
 }
 #include <numeric>
 #include <iterator>
 
 #define APP_BUTTON GPIO_NUM_0
 #define TAG "UsbHid" // Log tag
+
+void set_rtc_time(uint64_t unix_time_ms) {
+    struct timeval tv;
+    tv.tv_sec = unix_time_ms / 1000;
+    tv.tv_usec = (unix_time_ms % 1000) * 1000;
+    settimeofday(&tv, NULL); // Sets the system time (RTC)
+}
+
+uint64_t get_rtc_time_ms() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (uint64_t)tv.tv_sec * 1000 + (uint64_t)tv.tv_usec / 1000;
+}
 
 static const uint8_t hid_report_desc[] = {
     0x06, 0x00, 0xFF, // USAGE_PAGE (Vendor Defined Page 1) - Custom page (0xFF00)
@@ -219,4 +234,31 @@ void UsbHidDevice::taskLoop()
 
 void UsbHidDevice::updateRTC()
 {
+    uint8_t timestamp_bytes[6] = {0};
+    if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)))
+    {
+        memcpy(timestamp_bytes, received_packet_, 6);
+        xSemaphoreGive(mutex_);
+    }
+    uint64_t timestamp = 0;
+    // Reconstruct the 64-bit integer from the 6-byte little-endian array
+    // The timestamp will be stored in the first 6 bytes of the uint64_t.
+    // The higher-order bits will be zero.
+    timestamp = (uint64_t)timestamp_bytes[0] << 0 |
+                (uint64_t)timestamp_bytes[1] << 8 |
+                (uint64_t)timestamp_bytes[2] << 16 |
+                (uint64_t)timestamp_bytes[3] << 24 |
+                (uint64_t)timestamp_bytes[4] << 32 |
+                (uint64_t)timestamp_bytes[5] << 40;
+
+
+
+    // Update the RTC with the timestamp
+    auto deviation = get_rtc_time_ms() - timestamp;
+    if (deviation > 100 || deviation < -100) {
+        ESP_LOGW(TAG, "RTC time deviation is too high: %lld milliseconds. Updating RTC.", deviation);
+        set_rtc_time(timestamp);
+    }
+
+    ESP_LOGI(TAG, "RTC updated with timestamp: %llu", timestamp);
 }
