@@ -16,33 +16,31 @@ extern "C"
 static const uint8_t hid_report_desc[] = {
     0x06, 0x00, 0xFF, // USAGE_PAGE (Vendor Defined Page 1) - Custom page (0xFF00)
     0x09, 0x01,       // USAGE (Vendor Usage 1) - General device usage
-
-    0xA1, 0x01, // COLLECTION (Application) - Top-level collection for our device
+    0xA1, 0x01,       // COLLECTION (Application) - Top-level collection for our device
 
     // --- Output Report (PC to MCU) ---
-    // This report is for the PC to send a single 8-bit value to the MCU.
-    // The PC will send a 2-byte packet: [Report ID 1, Data Byte]
-    0x85, 0x01, //   REPORT_ID (1) - Identifier for this output report
-    0x09, 0x02, //   USAGE (Vendor Usage 2) - Identifies the input value field
-    0x15, 0x00, //   LOGICAL_MINIMUM (0) - Data range 0
-    0x25, 0xFF, //   LOGICAL_MAXIMUM (255) - Data range 255
-    0x75, 0x08, //   REPORT_SIZE (8) - Each data item is 8 bits (1 byte)
-    0x95, 0x0F, //   REPORT_COUNT (15) - There is 15 data byte items [5 timestamp + 5 poses + 5 stiffness values]
-    0x91, 0x02, //   OUTPUT (Data,Var,Abs)
+    // This report sends timestamp, pose, and stiffness values from the host (PC) to the device (MCU).
+    // The total report size is 16 bytes: [1 byte Report ID] + [15 bytes data].
+    0x85, 0x01,       // REPORT_ID (1) - Unique identifier for this output report
+    0x09, 0x02,       // USAGE (Vendor Usage 2) - Identifies the data payload
+    0x15, 0x00,       // LOGICAL_MINIMUM (0) - Minimum value for each data item is 0
+    0x25, 0xFF,       // LOGICAL_MAXIMUM (255) - Maximum value for each data item is 255
+    0x75, 0x08,       // REPORT_SIZE (8) - Each data item is 8 bits (1 byte)
+    0x95, 0x10,       // REPORT_COUNT (16) - 16 data items: 6 bytes for timestamp + 5 poses + 5 stiffness
+    0x91, 0x02,       // OUTPUT (Data,Var,Abs) - Defines a variable, absolute data output field
 
     // --- Input Report (MCU to PC) ---
-    // This report is for the MCU to send a single 8-bit value (incremented) to the PC.
-    // The MCU will send a 2-byte packet: [Report ID 2, Data Byte]
-    0x85, 0x02, //   REPORT_ID (2) - Identifier for this input report
-    0x09, 0x03, //   USAGE (Vendor Usage 3) - Identifies the output value field
-    0x15, 0x00, //   LOGICAL_MINIMUM (0)
-    0x25, 0xFF, //   LOGICAL_MAXIMUM (255)
-    0x75, 0x08, //   REPORT_SIZE (8) - Each data item is 8 bits
-    0x95, 0x25, //   REPORT_COUNT (37) - There is 1 data item
-    // [5 Poses and 5 Velocities and 5 Forces and 4 quaternion values and 5 MA3 Encoder values and 13 ADC values]
-    0x81, 0x02, //   INPUT (Data,Var,Abs)
+    // This report sends various sensor and encoder values from the MCU to the host (PC).
+    // The total report size is 38 bytes: [1 byte Report ID] + [37 bytes data].
+    0x85, 0x02,       // REPORT_ID (2) - Unique identifier for this input report
+    0x09, 0x03,       // USAGE (Vendor Usage 3) - Identifies the data payload
+    0x15, 0x00,       // LOGICAL_MINIMUM (0) - Minimum value for each data item is 0
+    0x25, 0xFF,       // LOGICAL_MAXIMUM (255) - Maximum value for each data item is 255
+    0x75, 0x08,       // REPORT_SIZE (8) - Each data item is 8 bits (1 byte)
+    0x95, 0x25,       // REPORT_COUNT (37) - 37 data items: [5 poses + 5 velocities + 5 forces + 4 quaternions + 5 encoders + 13 ADC]
+    0x81, 0x02,       // INPUT (Data,Var,Abs) - Defines a variable, absolute data input field
 
-    0xC0 // END_COLLECTION
+    0xC0              // END_COLLECTION
 };
 
 static const uint8_t hid_cfg_desc[] = {

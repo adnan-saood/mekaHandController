@@ -123,19 +123,14 @@ esp_err_t MotorDriverBLDC::setSpeed(float speed)
         ESP_LOGE(TAG, "MotorDriver not initialized");
         return ESP_ERR_INVALID_STATE;
     }
-
     // Ensure speed is within [-1.0, 1.0]
     if (speed < -1.0f)
         speed = -1.0f;
     if (speed > 1.0f)
         speed = 1.0f;
 
-    // Calculate duty ticks based on speed
-    // Assuming 1000 ticks = 100% duty cycle at 25kHz
-    // Adjust this based on your actual PWM frequency and resolution
     const uint32_t duty_ticks = static_cast<uint32_t>((speed < 0 ? -speed : speed) * 1000); // 1000 ticks = 100% duty (25kHz)
 
-    // Set comparator values based on speed direction
     if (speed >= 0)
     {
         ESP_RETURN_ON_ERROR(mcpwm_comparator_set_compare_value(comparator_high_, duty_ticks), BLDC_TAG, "Set Speed");
