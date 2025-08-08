@@ -55,6 +55,7 @@
 
 // IMU Interrupt Pin
 #define IMU_INT         GPIO_NUM_16   // IMU Interrupt
+#define IMU_ENABLE      GPIO_NUM_37   // IMU Enable
 
 // I2C Pins
 #define I2C_SDA         GPIO_NUM_35   // I2C Data

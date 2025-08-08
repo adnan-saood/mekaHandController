@@ -21,8 +21,13 @@ extern "C"
 class IMU
 {
 public:
-    IMU()
-    {
+    IMU(){
+
+        ESP_LOGI("IMU", "IMU Enabling via hardware pin");
+        // output high to IMU_ENABLE pin to enable the IMU
+        gpio_set_direction(IMU_ENABLE, GPIO_MODE_OUTPUT);
+        gpio_set_level(IMU_ENABLE, 1); // Set the pin high to enable the IMU
+        ESP_LOGI("IMU", "IMU Enabled via hardware pin");
 
 
     }
@@ -49,11 +54,11 @@ public:
 
         ESP_LOGI("IMU", "I2C initialized for IMU");
 
-        while (icm20948_check_id(&icm) != ICM_20948_STAT_OK)
-        {
-            ESP_LOGE("IMU", "check id failed");
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
-        }
+        // while (icm20948_check_id(&icm) != ICM_20948_STAT_OK)
+        // {
+        //     ESP_LOGE("IMU", "check id failed");
+        //     vTaskDelay(1000 / portTICK_PERIOD_MS);
+        // }
         ESP_LOGI("IMU", "check id passed");
 
         icm20948_init_i2c(&icm, &icm_config);
@@ -132,6 +137,9 @@ protected:
         ESP_LOGI("IMU", "Initializing DMP for IMU");
         bool success = true; // Use success to show if the DMP configuration was successful
 
+        ESP_LOGI("IMU", "Enabling DMP for IMU");
+        printf("success value: %d\n", success);
+
         // Initialize the DMP with defaults.
         success &= (icm20948_init_dmp_sensor_with_defaults(icm) == ICM_20948_STAT_OK);
         // DMP sensor options are defined in ICM_20948_DMP.h
@@ -151,8 +159,14 @@ protected:
         //    INV_ICM20948_SENSOR_LINEAR_ACCELERATION         (16-bit accel + 32-bit 6-axis quaternion)
         //    INV_ICM20948_SENSOR_ORIENTATION                 (32-bit 9-axis quaternion + heading accuracy)
 
+        ESP_LOGI("IMU", "Enabling DMP sensors for IMU");
+        printf("success value: %d\n", success);
+
         // Enable the DMP orientation sensor
         success &= (inv_icm20948_enable_dmp_sensor(icm, INV_ICM20948_SENSOR_ORIENTATION, 1) == ICM_20948_STAT_OK);
+
+        ESP_LOGI("IMU", "DMP orientation sensor enabled for IMU");
+        printf("success value: %d\n", success);
 
         // Enable any additional sensors / features
         // success &= (myICM.enableDMPSensor(INV_ICM20948_SENSOR_RAW_GYROSCOPE) == ICM_20948_STAT_OK);
@@ -165,6 +179,9 @@ protected:
         // Value = (DMP running rate / ODR ) - 1
         // E.g. For a 5Hz ODR rate when DMP is running at 55Hz, value = (55/5) - 1 = 10.
         success &= (inv_icm20948_set_dmp_sensor_period(icm, DMP_ODR_Reg_Quat9, 0) == ICM_20948_STAT_OK); // Set to the maximum
+
+        ESP_LOGI("IMU", "DMP sensor period set for IMU");
+        printf("success value: %d\n", success);
         // success &= (myICM.setDMPODRrate(DMP_ODR_Reg_Accel, 0) == ICM_20948_STAT_OK); // Set to the maximum
         // success &= (myICM.setDMPODRrate(DMP_ODR_Reg_Gyro, 0) == ICM_20948_STAT_OK); // Set to the maximum
         // success &= (myICM.setDMPODRrate(DMP_ODR_Reg_Gyro_Calibr, 0) == ICM_20948_STAT_OK); // Set to the maximum
@@ -172,12 +189,25 @@ protected:
         // success &= (myICM.setDMPODRrate(DMP_ODR_Reg_Cpass_Calibr, 0) == ICM_20948_STAT_OK); // Set to the maximum
         //  Enable the FIFO
         success &= (icm20948_enable_fifo(icm, true) == ICM_20948_STAT_OK);
+
+        ESP_LOGI("IMU", "FIFO enabled for IMU");
+        printf("success value: %d\n", success);
         // Enable the DMP
         success &= (icm20948_enable_dmp(icm, 1) == ICM_20948_STAT_OK);
+
+        ESP_LOGI("IMU", "DMP enabled for IMU");
+        printf("success value: %d\n", success);
         // Reset DMP
         success &= (icm20948_reset_dmp(icm) == ICM_20948_STAT_OK);
+
+        ESP_LOGI("IMU", "DMP reset for IMU");
+        printf("success value: %d\n", success);
+
         // Reset FIFO
         success &= (icm20948_reset_fifo(icm) == ICM_20948_STAT_OK);
+
+        ESP_LOGI("IMU", "FIFO reset for IMU");
+        printf("success value: %d\n", success);
 
         // Check success
         if (success)

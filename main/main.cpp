@@ -61,37 +61,9 @@ extern "C" void app_main(void)
 
 
     HearBeat();
-
-    // IMU imu;
-
-    // imu.init();
-
-    vTaskDelay(pdMS_TO_TICKS(1000)); // Wait for IMU initialization
-    
-
-
-// [5 Poses and 5 Velocities and 5 Forces and 4 quaternion values and 5 MA3 Encoder values and 13 ADC values]
-// [0 : 4] Poses
-    // [5 : 9] Velocities
-    // [10 : 14] Forces
-    // [15 : 18] Quaternion values
-    // [19 : 23] MA3 Encoder values
-    // [24 : 36] ADC values
     while (1)
     {
-        // IMUData imuData = imu.read();
-
-        int8_t payload[4] = {0};
-         for (size_t i = 0; i < 4; ++i) {
-            // payload[i] = static_cast<int8_t>(imuData.quaternion[i] * 127.0f); // Scale to int8_t range
-        }
-
-        // Process IMU data (e.g., send to USB)
-        // xSemaphoreTake(myHidDevice.getMutex(), pdMS_TO_TICKS(10));
-        // memcpy(myHidDevice.getPayloadPointer() + 15, payload, 4);
-        // xSemaphoreGive(myHidDevice.getMutex());
-
-        vTaskDelay(pdMS_TO_TICKS(50)); // Delay to prevent busy-waiting
+        vTaskDelay(pdMS_TO_TICKS(500)); // Delay to prevent busy-waiting
     }
 
 
@@ -115,12 +87,12 @@ void HearBeat()
         while (1)
         {
             gpio_set_level(ledPin, 1);
-            vTaskDelay(pdMS_TO_TICKS(50)); // LED ON for 500 ms
+            vTaskDelay(pdMS_TO_TICKS(50)); // LED ON for 50 ms
             gpio_set_level(ledPin, 0);
-            vTaskDelay(pdMS_TO_TICKS(100)); // LED OFF for 500 ms
+            vTaskDelay(pdMS_TO_TICKS(100)); // LED OFF for 100 ms
             gpio_set_level(ledPin, 1);
-            vTaskDelay(pdMS_TO_TICKS(50)); // LED ON for 500 ms
+            vTaskDelay(pdMS_TO_TICKS(50)); // LED ON for 50 ms
             gpio_set_level(ledPin, 0);
-            vTaskDelay(pdMS_TO_TICKS(600)); // LED OFF for 500 ms
+            vTaskDelay(pdMS_TO_TICKS(600)); // LED OFF for 600 ms
         } }, "led_blink_task", 2048, NULL, 5, NULL);
 }
