@@ -14,5 +14,7 @@ idf_component_register(SRCS "main.cpp"
                             esp_driver_pcnt
                             esp_adc
                             tinyusb
+                            esp_timer
+                            esp_driver_uart
                     
                     INCLUDE_DIRS "." "tasks")

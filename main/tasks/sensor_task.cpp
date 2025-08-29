@@ -2,9 +2,9 @@
 
 void SensorTask::start()
 {
-    xTaskCreate(&SensorTask::imuTask, "IMU_Task", stackSize, this, priority, nullptr);
+    //xTaskCreate(&SensorTask::imuTask, "IMU_Task", stackSize, this, priority, nullptr);
     xTaskCreate(&SensorTask::adcTask, "ADC_Task", stackSize, this, priority, nullptr);
-    xTaskCreate(&SensorTask::encoderTask, "Encoder_Task", stackSize, this, priority, nullptr);
+    //xTaskCreate(&SensorTask::encoderTask, "Encoder_Task", stackSize, this, priority, nullptr);
 }
 
 bool SensorTask::getIMUData(IMUData &outData)

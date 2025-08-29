@@ -77,10 +77,10 @@ public:
         }   
     }
 
+    UsbHidDevice *_usb;
 private:
     static void taskFunction(void *arg);
     TaskHandle_t taskHandle;
-    UsbHidDevice *_usb;
 };
 
 #endif // USB_TASK_HPP

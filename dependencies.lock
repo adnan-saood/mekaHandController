@@ -1,14 +1,14 @@
 dependencies:
-  adnan-saood/icm20948:
-    component_hash: e407627404ca906610ca469852e1f7613dc417e0d580cd375c260ef8e2006d18
+  espressif/bdc_motor:
+    component_hash: 9292b605cfd390ff62225caa93e02700b86377e6a3156620192e4876dcf87b27
     dependencies:
     - name: idf
+      require: private
       version: '>=5.0'
     source:
-      git: https://github.com/adnan-saood/icm20948.git
-      path: .
-      type: git
-    version: f5f9ba84198936907e10762ec21ebb4201e0ec36
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.1.0
   espressif/esp_tinyusb:
     component_hash: 96d232ced7afe1976119b62f7fbf1944a2a78b36228ff6f7b9318394ac1153cc
     dependencies:
@@ -23,6 +23,16 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.7.6~1
+  espressif/pid_ctrl:
+    component_hash: 17bd99c0160f1c327803aceb088ef0e4ab3410ceb0708cb87fcc950bb62e5698
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.1.1
   espressif/tinyusb:
     component_hash: aa65639878f27a44d349044afd9c3fc134a92bd560874fdac1d836019b5c07ca
     dependencies:
@@ -42,9 +52,10 @@ dependencies:
       type: idf
     version: 5.4.2
 direct_dependencies:
-- adnan-saood/icm20948
+- espressif/bdc_motor
 - espressif/esp_tinyusb
+- espressif/pid_ctrl
 - idf
-manifest_hash: 6603abc5abecb0e5324a4957d0ad369ab8de6e686e1ad9bd71af4e6d3900dfe3
+manifest_hash: 15bab3f6ff2b19a379651ac48cee3e1a57eb0b6082ca09093e9f604485a36bb5
 target: esp32s3
 version: 2.0.0

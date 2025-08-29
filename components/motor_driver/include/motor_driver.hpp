@@ -38,6 +38,14 @@ public:
      */
     virtual esp_err_t setSpeed(float speed);
 
+    /**
+     * @brief Read MA3 PWM encoder position using MCPWM capture and print value.
+     * @return esp_err_t ESP_OK on success, or error code.
+     */
+    esp_err_t readEncoderPosition();
+
+    int getEncoderPosition() const;
+
 protected:
     const int mcpwm_unit_;
     const gpio_num_t pwm_high_gpio_;
@@ -51,6 +59,7 @@ protected:
     mcpwm_gen_handle_t generator_low_ = nullptr;
 
     bool initialized_ = false;
+    static void ma3_encoder_task(void *arg);
 };
 
 class MotorDriverBLDC : public MotorDriver
@@ -89,6 +98,8 @@ public:
      * @return esp_err_t ESP_OK on success, or error code.
      * */
     esp_err_t setSpeed(float speed) override;
+
+
 }
 ;
 

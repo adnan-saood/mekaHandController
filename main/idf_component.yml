@@ -1,6 +1,8 @@
 ## IDF Component Manager Manifest File
 dependencies:
   ## Required IDF version
+  pid_ctrl: "^0.1.1"
+  bdc_motor: "^0.1.0"
   idf:
     version: ^5.0
   # # Put list of dependencies here
@@ -17,6 +19,6 @@ dependencies:
   espressif/esp_tinyusb: ^1.1
   
   # add component from github repository
-  adnan-saood/icm20948:
-    git: https://github.com/adnan-saood/icm20948.git
-    version: "*"
+  # adnan-saood/icm20948:
+  #   git: https://github.com/adnan-saood/icm20948.git
+  #   version: "*"

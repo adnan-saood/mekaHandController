@@ -1,14 +1,25 @@
-// MotorDriver.cpp
-
 #include "motor_driver.hpp"
 
 extern "C"
 {
 #include "esp_log.h"
 #include "esp_check.h"
+#include "driver/mcpwm_cap.h"
+
+#include "driver/gpio.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_timer.h"
+#include "driver/rmt_rx.h"
 }
+
+#include "pin_config.h"
 static const char *TAG = "MotorDriver";
 static const char *BLDC_TAG = "MotorDriverBLDC";
+
+// Task handle for encoder reading
+static TaskHandle_t encoder_task_handle = nullptr;
+volatile int ma3_position = 0; // Shared variable for position
 
 MotorDriver::MotorDriver(int mcpwm_unit, gpio_num_t pwm_high_gpio, gpio_num_t pwm_low_gpio)
     : mcpwm_unit_(mcpwm_unit),
@@ -142,4 +153,48 @@ esp_err_t MotorDriverBLDC::setSpeed(float speed)
         ESP_RETURN_ON_ERROR(mcpwm_comparator_set_compare_value(comparator_low_, 1000), BLDC_TAG, "Set Direction");
     }
     return ESP_OK;
+}
+
+
+void MotorDriver::ma3_encoder_task(void *arg)
+{
+    // RMT configuration for MA3 PWM encoder
+    rmt_channel_handle_t rmt_rx_chan = nullptr;
+    rmt_rx_channel_config_t rx_chan_config = {
+        MOTOR_ENC_4,           // gpio_num: MA3 encoder pin
+        RMT_CLK_SRC_DEFAULT,   // clk_src
+        1000000,               // resolution_hz: 1 MHz = 1us resolution
+        64,                    // mem_block_symbols: Enough for one PWM period
+        { false }              // flags: invert_in = false
+    };
+    ESP_ERROR_CHECK(rmt_new_rx_channel(&rx_chan_config, &rmt_rx_chan));
+
+    rmt_receive_config_t rx_config = {
+        .signal_range_min_ns = 1000,       // 1us min pulse
+        .signal_range_max_ns = 5000000,    // 5ms max pulse
+    };
+    ESP_ERROR_CHECK(rmt_enable(rmt_rx_chan));
+
+    while (1)
+    {
+        rmt_symbol_word_t symbols[8]; // Buffer for captured symbols
+        size_t num_symbols = 0;
+
+        esp_err_t ret = rmt_receive(rmt_rx_chan, symbols, sizeof(symbols)/sizeof(symbols[0]), &rx_config);
+        if (ret == ESP_OK)
+        {
+            // The first symbol is the high pulse width
+            uint32_t high_ticks = symbols[0].duration0;
+            // Convert ticks to microseconds (resolution_hz = 1MHz)
+            int pulse_width_us = high_ticks;
+            ma3_position = pulse_width_us;
+            printf("[MotorDriver] MA3 Position: %d (pulse width: %d us)\n", ma3_position, pulse_width_us);
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+int MotorDriver::getEncoderPosition() const
+{
+    return ma3_position;
 }
