@@ -1,0 +1,264 @@
+// usb_driver.cpp
+
+#include "usb_driver.hpp"
+
+extern "C"
+{
+#include "driver/gpio.h"
+#include "class/hid/hid_device.h" // For TinyUSB HID specific functions
+#include <time.h>
+#include <sys/time.h>
+}
+#include <numeric>
+#include <iterator>
+
+#define APP_BUTTON GPIO_NUM_0
+#define TAG "UsbHid" // Log tag
+
+void set_rtc_time(uint64_t unix_time_ms) {
+    struct timeval tv;
+    tv.tv_sec = unix_time_ms / 1000;
+    tv.tv_usec = (unix_time_ms % 1000) * 1000;
+    settimeofday(&tv, NULL); // Sets the system time (RTC)
+}
+
+uint64_t get_rtc_time_ms() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (uint64_t)tv.tv_sec * 1000 + (uint64_t)tv.tv_usec / 1000;
+}
+
+static const uint8_t hid_report_desc[] = {
+    0x06, 0x00, 0xFF, // USAGE_PAGE (Vendor Defined Page 1) - Custom page (0xFF00)
+    0x09, 0x01,       // USAGE (Vendor Usage 1) - General device usage
+    0xA1, 0x01,       // COLLECTION (Application) - Top-level collection for our device
+
+    // --- Output Report (PC to MCU) ---
+    // This report sends timestamp, pose, and stiffness values from the host (PC) to the device (MCU).
+    // The total report size is 16 bytes: [1 byte Report ID] + [15 bytes data].
+    0x85, 0x01,       // REPORT_ID (1) - Unique identifier for this output report
+    0x09, 0x02,       // USAGE (Vendor Usage 2) - Identifies the data payload
+    0x15, 0x00,       // LOGICAL_MINIMUM (0) - Minimum value for each data item is 0
+    0x25, 0xFF,       // LOGICAL_MAXIMUM (255) - Maximum value for each data item is 255
+    0x75, 0x08,       // REPORT_SIZE (8) - Each data item is 8 bits (1 byte)
+    0x95, 0x10,       // REPORT_COUNT (16) - 16 data items: 6 bytes for timestamp + 5 poses + 5 stiffness
+    0x91, 0x02,       // OUTPUT (Data,Var,Abs) - Defines a variable, absolute data output field
+
+    // --- Input Report (MCU to PC) ---
+    // This report sends various sensor and encoder values from the MCU to the host (PC).
+    // The total report size is 38 bytes: [1 byte Report ID] + [37 bytes data].
+    0x85, 0x02,       // REPORT_ID (2) - Unique identifier for this input report
+    0x09, 0x03,       // USAGE (Vendor Usage 3) - Identifies the data payload
+    0x15, 0x00,       // LOGICAL_MINIMUM (0) - Minimum value for each data item is 0
+    0x25, 0xFF,       // LOGICAL_MAXIMUM (255) - Maximum value for each data item is 255
+    0x75, 0x08,       // REPORT_SIZE (8) - Each data item is 8 bits (1 byte)
+    0x95, 0x25,       // REPORT_COUNT (37) - 37 data items: [5 poses + 5 velocities + 5 forces + 4 quaternions + 5 encoders + 13 ADC]
+    0x81, 0x02,       // INPUT (Data,Var,Abs) - Defines a variable, absolute data input field
+
+    0xC0              // END_COLLECTION
+};
+
+static const uint8_t hid_cfg_desc[] = {
+    TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+    TUD_HID_DESCRIPTOR(0, 4, false, sizeof(hid_report_desc), 0x81, CFG_TUD_HID_EP_BUFSIZE, 10) // Fixed arguments here
+};
+
+// --- USB String Descriptors ---
+static const char *hid_str_desc[] = {
+    (const char[]){0x09, 0x04}, // Language: English (0x0409)
+    "ENSTA",                    // iManufacturer
+    "ESP32 HID Interface",      // iProduct
+    "20250725",                 // iSerialNumber
+    "Incrementer Interface",    // iInterface (index 4 in hid_cfg_desc)
+};
+
+// --- Global UsbHidDevice instance pointer ---
+UsbHidDevice *g_usb_hid_device_instance = nullptr;
+
+// --- Global TinyUSB Callbacks (extern "C" to be compatible with TinyUSB C API) ---
+
+extern "C" const uint8_t *tud_hid_descriptor_report_cb(uint8_t instance)
+{
+    (void)instance; // Unused parameter
+    return hid_report_desc;
+}
+
+// Invoked when received GET_REPORT control request
+// Application must fill buffer with the requested report
+extern "C" uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer, uint16_t reqlen)
+{
+    (void)instance;
+    (void)report_type;
+    (void)reqlen;
+    ESP_LOGI(TAG, "GET_REPORT callback: Instance %d, Report ID %d, Type %d, ReqLen %d", instance, report_id, report_type, reqlen);
+
+    if (report_id == 0x02 && reqlen >= 1 && g_usb_hid_device_instance != nullptr)
+    {
+        if (xSemaphoreTake(g_usb_hid_device_instance->getMutex(), pdMS_TO_TICKS(10)))
+        {
+            memccpy(buffer, g_usb_hid_device_instance->getPayloadPointer(), 0, sizeof(g_usb_hid_device_instance->getPayloadPointer()));
+            xSemaphoreGive(g_usb_hid_device_instance->getMutex());
+            return 1; // Indicate 1 byte of data provided
+        }
+    }
+    return 0; // Indicate no data or not handled
+}
+
+// Invoked when received SET_REPORT control request
+// Application must consume the control data and return the length of data consumed
+extern "C" void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, const uint8_t *buffer, uint16_t bufsize)
+{
+    (void)instance;
+    (void)report_type;
+    ESP_LOGI(TAG, "SET_REPORT callback: Instance %d, Report ID %d, Type %d, BufSize %d", instance, report_id, report_type, bufsize);
+
+    if (g_usb_hid_device_instance != nullptr)
+    {
+        if (xSemaphoreTake(g_usb_hid_device_instance->getMutex(), pdMS_TO_TICKS(10)))
+        {
+            g_usb_hid_device_instance->handleSetReport(report_id, buffer, bufsize);
+            xSemaphoreGive(g_usb_hid_device_instance->getMutex());
+        }
+        else
+        {
+            ESP_LOGW(TAG, "SET_REPORT: Could not acquire mutex.");
+        }
+    }
+    else
+    {
+        ESP_LOGW(TAG, "SET_REPORT: UsbHidDevice instance not set!");
+    }
+}
+
+// --- UsbHidDevice Class Implementation ---
+
+UsbHidDevice::UsbHidDevice() : received_packet_(0),
+                               new_value_available_(false)
+{
+    mutex_ = nullptr;
+    data_mutex_ = nullptr;
+}
+
+void UsbHidDevice::init()
+{
+    mutex_ = xSemaphoreCreateMutex();
+    if (mutex_ == NULL)
+        ESP_LOGE(TAG, "Failed to create mutex");
+
+    data_mutex_ = xSemaphoreCreateMutex();
+    if (data_mutex_ == NULL)
+        ESP_LOGE(TAG, "Failed to create data_mutex_");
+    // 1. Initialize GPIO
+
+    const gpio_config_t btn_cfg = {
+        .pin_bit_mask = BIT64(APP_BUTTON),
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE};
+    gpio_config(&btn_cfg);
+
+    // 1. Initialize GPIO
+    const gpio_config_t led_cfg = {
+        .pin_bit_mask = BIT64(GPIO_NUM_13),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE};
+    gpio_config(&led_cfg);
+    ESP_LOGI(TAG, "LED initialized.");
+
+    static const tusb_desc_device_t my_device_desc = {
+        .bLength = sizeof(tusb_desc_device_t),
+        .bDescriptorType = TUSB_DESC_DEVICE,
+        .bcdUSB = 0x0200,
+        .bDeviceClass = 0,
+        .bDeviceSubClass = 0,
+        .bDeviceProtocol = 0,
+        .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
+        .idVendor = 0xCafe,
+        .idProduct = 0x4000,
+        .bcdDevice = 0x0100,
+        .iManufacturer = 0x01,
+        .iProduct = 0x02,
+        .iSerialNumber = 0x03,
+        .bNumConfigurations = 0x01};
+
+    // 2. Initialize TinyUSB driver
+    const tinyusb_config_t tusb_cfg = {
+        // EXACT ORDER matching your provided example and including string_descriptor_count
+        .device_descriptor = &my_device_desc, // TinyUSB will use default device descriptor if NULL
+        .string_descriptor = hid_str_desc,
+        .string_descriptor_count = sizeof(hid_str_desc) / sizeof(hid_str_desc[0]),
+        .external_phy = false,
+#if TUD_OPT_HIGH_SPEED
+        .fs_configuration_descriptor = hid_cfg_desc,
+        .hs_configuration_descriptor = hid_cfg_desc,
+        .qualifier_descriptor = NULL, // Re-added this as per your example
+#else
+        .configuration_descriptor = hid_cfg_desc,
+#endif // TUD_OPT_HIGH_SPEED
+    };
+    ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
+    ESP_LOGI(TAG, "TinyUSB driver installed.");
+}
+
+// This method is called by the extern "C" tud_hid_set_report_cb
+void UsbHidDevice::handleSetReport(uint8_t report_id, const uint8_t *buffer, uint16_t bufsize)
+{
+    if (report_id == 0x01 && bufsize >= 15)
+    {
+        xSemaphoreTake(mutex_, pdMS_TO_TICKS(10));
+        memcpy(received_packet_, buffer, 15);
+        xSemaphoreGive(mutex_);
+    }
+}
+void UsbHidDevice::sendData()
+{
+    if (!tud_hid_ready())
+        return;
+    uint8_t local_payload[37];
+    if (xSemaphoreTake(this->mutex_, pdMS_TO_TICKS(10)))
+    {
+        memcpy(local_payload, payload_data_, sizeof(local_payload));
+        xSemaphoreGive(this->mutex_);
+        tud_hid_report(0x02, local_payload, sizeof(local_payload));
+    }
+}
+
+void UsbHidDevice::taskLoop()
+{
+    if (tud_mounted())
+        sendData();
+}
+
+void UsbHidDevice::updateRTC()
+{
+    uint8_t timestamp_bytes[6] = {0};
+    if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)))
+    {
+        memcpy(timestamp_bytes, received_packet_, 6);
+        xSemaphoreGive(mutex_);
+    }
+    uint64_t timestamp = 0;
+    // Reconstruct the 64-bit integer from the 6-byte little-endian array
+    // The timestamp will be stored in the first 6 bytes of the uint64_t.
+    // The higher-order bits will be zero.
+    timestamp = (uint64_t)timestamp_bytes[0] << 0 |
+                (uint64_t)timestamp_bytes[1] << 8 |
+                (uint64_t)timestamp_bytes[2] << 16 |
+                (uint64_t)timestamp_bytes[3] << 24 |
+                (uint64_t)timestamp_bytes[4] << 32 |
+                (uint64_t)timestamp_bytes[5] << 40;
+
+
+
+    // Update the RTC with the timestamp
+    auto deviation = get_rtc_time_ms() - timestamp;
+    if (deviation > 100 || deviation < -100) {
+        ESP_LOGW(TAG, "RTC time deviation is too high: %lld milliseconds. Updating RTC.", deviation);
+        set_rtc_time(timestamp);
+    }
+
+    ESP_LOGI(TAG, "RTC updated with timestamp: %llu", timestamp);
+}
