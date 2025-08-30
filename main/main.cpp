@@ -61,26 +61,7 @@ static void example_ledc_init(void)
 }
 ////////////////////////////////////////////////////////////**
 
-static bool encoder_callback(mcpwm_cap_channel_handle_t cap_chan,
-                             const mcpwm_capture_event_data_t *edata,
-                             void *user_data)
-{
-    TaskHandle_t task_to_notify = (TaskHandle_t)user_data;
-    static uint32_t cap_val_rise = 0;
-
-    if (edata->cap_edge == MCPWM_CAP_EDGE_POS)
-    {
-        cap_val_rise = edata->cap_value;
-    }
-    else if (edata->cap_edge == MCPWM_CAP_EDGE_NEG)
-    {
-        uint32_t pulse_width = edata->cap_value - cap_val_rise;
-        BaseType_t high_task_wakeup;
-        xTaskNotifyFromISR(task_to_notify, pulse_width, eSetValueWithOverwrite, &high_task_wakeup);
-        return high_task_wakeup == pdTRUE;
-    }
-    return false;
-}
+MotorDriver m(0,GPIO_NUM_15, GPIO_NUM_10, GPIO_NUM_14);
 
 extern "C" void app_main(void)
 {
@@ -90,51 +71,13 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, LEDC_DUTY));
     // Update duty to apply the new value
     ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_CHANNEL));
+    m.init();
 
-    ESP_LOGI(TAG, "Install capture timer");
-    mcpwm_cap_timer_handle_t cap_timer = NULL;
-    mcpwm_capture_timer_config_t cap_conf = {
-        .group_id = 0,
-        .clk_src = MCPWM_CAPTURE_CLK_SRC_DEFAULT,
-        .resolution_hz = 80000000 // 80 MHz
-    };
-    ESP_ERROR_CHECK(mcpwm_new_capture_timer(&cap_conf, &cap_timer));
-
-    ESP_LOGI(TAG, "Install capture channel");
-    mcpwm_cap_channel_handle_t cap_chan = NULL;
-    mcpwm_capture_channel_config_t cap_ch_conf = {
-        .gpio_num = GPIO_NUM_14,
-        .intr_priority = 1,
-        .prescale = 1,
-        // flags will be set below
-    };
-    cap_ch_conf.flags.pos_edge = true;
-    cap_ch_conf.flags.neg_edge = true;
-    cap_ch_conf.flags.pull_up = false;
-    cap_ch_conf.flags.pull_down = false;
-    cap_ch_conf.flags.invert_cap_signal = false;
-
-    ESP_ERROR_CHECK(mcpwm_new_capture_channel(cap_timer, &cap_ch_conf, &cap_chan));
-
-    ESP_LOGI(TAG, "Register capture callback");
-    TaskHandle_t cur_task = xTaskGetCurrentTaskHandle();
-    mcpwm_capture_event_callbacks_t cbs = {
-        .on_cap = encoder_callback,
-    };
-    ESP_ERROR_CHECK(mcpwm_capture_channel_register_event_callbacks(cap_chan, &cbs, cur_task));
-
-    ESP_ERROR_CHECK(mcpwm_capture_channel_enable(cap_chan));
-
-    ESP_ERROR_CHECK(mcpwm_capture_timer_enable(cap_timer));
-    ESP_ERROR_CHECK(mcpwm_capture_timer_start(cap_timer));
-
-    uint32_t tof_ticks;
-    while (1)
+    while(1)
     {
-        if (xTaskNotifyWait(0, ULONG_MAX, &tof_ticks, pdMS_TO_TICKS(1000)) == pdTRUE)
-        {
-            float pulse_width_us = (float)tof_ticks / 80.0; // since 1 tick = 1 µs
-            ESP_LOGI(TAG, "Measured pulse: %.1f us", pulse_width_us);
-        }
+        uint32_t position = m.getEncoderPosition();
+        ESP_LOGI(TAG, "Encoder position: %lu", position);
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
+
 }
