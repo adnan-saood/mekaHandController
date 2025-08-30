@@ -21,10 +21,11 @@ static const char *BLDC_TAG = "MotorDriverBLDC";
 static TaskHandle_t encoder_task_handle = nullptr;
 volatile int ma3_position = 0; // Shared variable for position
 
-MotorDriver::MotorDriver(int mcpwm_unit, gpio_num_t pwm_high_gpio, gpio_num_t pwm_low_gpio)
+MotorDriver::MotorDriver(int mcpwm_unit, gpio_num_t pwm_high_gpio, gpio_num_t pwm_low_gpio, gpio_num_t encoder_gpio)
     : mcpwm_unit_(mcpwm_unit),
       pwm_high_gpio_(pwm_high_gpio),
-      pwm_low_gpio_(pwm_low_gpio) {}
+      pwm_low_gpio_(pwm_low_gpio),
+      encoder_gpio_(encoder_gpio) {}
 
 esp_err_t MotorDriver::init()
 {
@@ -94,9 +95,51 @@ esp_err_t MotorDriver::init()
     ESP_RETURN_ON_ERROR(mcpwm_timer_enable(timer_), TAG, "Failed to enable timer");
     ESP_RETURN_ON_ERROR(mcpwm_timer_start_stop(timer_, MCPWM_TIMER_START_NO_STOP), TAG, "Failed to start timer");
 
+    ESP_RETURN_ON_ERROR(init_encoder(), TAG, "Failed to initialize encoder");
+
     initialized_ = true;
     return ESP_OK;
 }
+
+esp_err_t MotorDriver::init_encoder()
+{
+    ESP_LOGI(TAG, "Install capture timer");
+    mcpwm_cap_timer_handle_t cap_timer = NULL;
+    mcpwm_capture_timer_config_t cap_conf = {
+        .group_id = mcpwm_unit_,
+        .clk_src = MCPWM_CAPTURE_CLK_SRC_DEFAULT,
+        .resolution_hz = 80000000 // 80 MHz
+    };
+    ESP_ERROR_CHECK(mcpwm_new_capture_timer(&cap_conf, &cap_timer));
+
+    ESP_LOGI(TAG, "Install capture channel");
+    mcpwm_cap_channel_handle_t cap_chan = NULL;
+    mcpwm_capture_channel_config_t cap_ch_conf = {
+        .gpio_num = GPIO_NUM_14,
+        // .intr_priority = 1,
+        .prescale = 1,
+        // flags will be set below
+    };
+    cap_ch_conf.flags.pos_edge = true;
+    cap_ch_conf.flags.neg_edge = true;
+    cap_ch_conf.flags.pull_up = false;
+    cap_ch_conf.flags.pull_down = true;
+    cap_ch_conf.flags.invert_cap_signal = false;
+
+    ESP_ERROR_CHECK(mcpwm_new_capture_channel(cap_timer, &cap_ch_conf, &cap_chan));
+
+    ESP_LOGI(TAG, "Register capture callback");
+    mcpwm_capture_event_callbacks_t cbs = {
+        .on_cap = encoder_callback,
+    };
+    ESP_ERROR_CHECK(mcpwm_capture_channel_register_event_callbacks(cap_chan, &cbs, this));
+    ESP_ERROR_CHECK(mcpwm_capture_channel_enable(cap_chan));
+    ESP_ERROR_CHECK(mcpwm_capture_timer_enable(cap_timer));
+    ESP_ERROR_CHECK(mcpwm_capture_timer_start(cap_timer));
+
+    return ESP_OK;
+}
+
 
 esp_err_t MotorDriver::setSpeed(float speed)
 {
@@ -155,46 +198,28 @@ esp_err_t MotorDriverBLDC::setSpeed(float speed)
     return ESP_OK;
 }
 
-
-void MotorDriver::ma3_encoder_task(void *arg)
+IRAM_ATTR bool MotorDriver::encoder_callback(mcpwm_cap_channel_handle_t cap_chan,
+                             const mcpwm_capture_event_data_t *edata,
+                             void *user_data)
 {
-    // RMT configuration for MA3 PWM encoder
-    rmt_channel_handle_t rmt_rx_chan = nullptr;
-    rmt_rx_channel_config_t rx_chan_config = {
-        MOTOR_ENC_4,           // gpio_num: MA3 encoder pin
-        RMT_CLK_SRC_DEFAULT,   // clk_src
-        1000000,               // resolution_hz: 1 MHz = 1us resolution
-        64,                    // mem_block_symbols: Enough for one PWM period
-        { false }              // flags: invert_in = false
-    };
-    ESP_ERROR_CHECK(rmt_new_rx_channel(&rx_chan_config, &rmt_rx_chan));
+    static uint32_t cap_val_rise = 0;
+    MotorDriver* self = reinterpret_cast<MotorDriver*>(user_data);
 
-    rmt_receive_config_t rx_config = {
-        .signal_range_min_ns = 1000,       // 1us min pulse
-        .signal_range_max_ns = 5000000,    // 5ms max pulse
-    };
-    ESP_ERROR_CHECK(rmt_enable(rmt_rx_chan));
-
-    while (1)
+    if (edata->cap_edge == MCPWM_CAP_EDGE_POS)
     {
-        rmt_symbol_word_t symbols[8]; // Buffer for captured symbols
-        size_t num_symbols = 0;
-
-        esp_err_t ret = rmt_receive(rmt_rx_chan, symbols, sizeof(symbols)/sizeof(symbols[0]), &rx_config);
-        if (ret == ESP_OK)
-        {
-            // The first symbol is the high pulse width
-            uint32_t high_ticks = symbols[0].duration0;
-            // Convert ticks to microseconds (resolution_hz = 1MHz)
-            int pulse_width_us = high_ticks;
-            ma3_position = pulse_width_us;
-            printf("[MotorDriver] MA3 Position: %d (pulse width: %d us)\n", ma3_position, pulse_width_us);
-        }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        cap_val_rise = edata->cap_value;
     }
+    else if (edata->cap_edge == MCPWM_CAP_EDGE_NEG)
+    {
+        uint32_t pulse_width = edata->cap_value - cap_val_rise;
+        if (self) {
+            self->ma3_pulse_width_ = pulse_width;
+        }
+    }
+    return false;
 }
 
-int MotorDriver::getEncoderPosition() const
+uint32_t MotorDriver::getEncoderPosition() const
 {
-    return ma3_position;
+    return ma3_pulse_width_ / 80.0; // add calculation for position
 }

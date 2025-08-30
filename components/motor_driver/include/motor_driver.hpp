@@ -19,8 +19,9 @@ public:
      * @param mcpwm_unit MCPWM unit (0 or 1 on ESP32-S3)
      * @param pwm_high_gpio GPIO for high-side PWM (gpio_num_t)
      * @param pwm_low_gpio GPIO for low-side PWM (gpio_num_t)
+     * @param encoder_gpio GPIO for encoder (gpio_num_t)
      */
-    MotorDriver(int mcpwm_unit, gpio_num_t pwm_high_gpio, gpio_num_t pwm_low_gpio);
+    MotorDriver(int mcpwm_unit, gpio_num_t pwm_high_gpio, gpio_num_t pwm_low_gpio, gpio_num_t encoder_gpio);
 
     /**
      * @brief Initialize the motor driver (MCPWM timer, operator, comparators, generators).
@@ -38,18 +39,14 @@ public:
      */
     virtual esp_err_t setSpeed(float speed);
 
-    /**
-     * @brief Read MA3 PWM encoder position using MCPWM capture and print value.
-     * @return esp_err_t ESP_OK on success, or error code.
-     */
-    esp_err_t readEncoderPosition();
-
-    int getEncoderPosition() const;
+    uint32_t getEncoderPosition() const;
 
 protected:
     const int mcpwm_unit_;
     const gpio_num_t pwm_high_gpio_;
     const gpio_num_t pwm_low_gpio_;
+    const gpio_num_t encoder_gpio_;
+    volatile uint32_t ma3_pulse_width_ = 0; // Latest captured pulse width
 
     mcpwm_timer_handle_t timer_ = nullptr;
     mcpwm_oper_handle_t operator_ = nullptr;
@@ -59,7 +56,14 @@ protected:
     mcpwm_gen_handle_t generator_low_ = nullptr;
 
     bool initialized_ = false;
-    static void ma3_encoder_task(void *arg);
+    
+    static bool encoder_callback(mcpwm_cap_channel_handle_t cap_chan,
+                             const mcpwm_capture_event_data_t *edata,
+                             void *user_data);
+
+
+
+    esp_err_t init_encoder();
 };
 
 class MotorDriverBLDC : public MotorDriver
@@ -73,8 +77,8 @@ public:
      * @param pwm_low_gpio GPIO for low-side PWM (gpio_num_t)
      * @return MotorDriverBLDC instance.
      * */
-    MotorDriverBLDC(int mcpwm_unit, gpio_num_t pwm, gpio_num_t dir)
-        : MotorDriver(mcpwm_unit, pwm, dir) {}
+    MotorDriverBLDC(int mcpwm_unit, gpio_num_t pwm, gpio_num_t dir, gpio_num_t encoder)
+        : MotorDriver(mcpwm_unit, pwm, dir, encoder) {}
 
     /**
      * @brief Initialize the BLDC motor driver.

@@ -9,6 +9,8 @@ extern "C"
 #include "esp_log.h"
 #include "driver/ledc.h"
 #include "driver/uart.h"
+#include "driver/gptimer.h"
+#include "freertos/queue.h"
 }
 
 #include "config.h"
@@ -27,106 +29,55 @@ extern "C"
 #define APP_BUTTON GPIO_NUM_0
 static const char *TAG = "main";
 
-MotorDriver m0(0, MOTOR_J0_PWM, MOTOR_J0_DIR);
-MotorDriver m1(1, MOTOR_J1_PWM_H, MOTOR_J1_PWM_L);
-MotorDriver m2(0, MOTOR_J2_PWM_H, MOTOR_J2_PWM_L);
-MotorDriver m3(0, MOTOR_J3_PWM_H, MOTOR_J3_PWM_L);
-MotorDriver m4(1, MOTOR_J4_PWM_H, MOTOR_J4_PWM_L);
+#define LEDC_TIMER LEDC_TIMER_0
+#define LEDC_MODE LEDC_LOW_SPEED_MODE
+#define LEDC_OUTPUT_IO (8) // Define the output GPIO
+#define LEDC_CHANNEL LEDC_CHANNEL_0
+#define LEDC_DUTY_RES LEDC_TIMER_10_BIT // Set duty resolution to 10 bits
+#define LEDC_DUTY (100)                 // Set duty to 10%. (2 ** 10) * 10% = 100
+#define LEDC_FREQUENCY (240)            // Frequency in Hertz. Set frequency at 240 Hz
 
-bool hand_open = true;
-
-void close_hand()
+static void example_ledc_init(void)
 {
-    float speed = 0.6;
-    int delay = 2000;
-    
-    m1.setSpeed(-speed);
-    m2.setSpeed(speed);
-    m3.setSpeed(-speed);
-    m4.setSpeed(-speed);
+    // Prepare and then apply the LEDC PWM timer configuration
+    ledc_timer_config_t ledc_timer = {
+        .speed_mode = LEDC_MODE,
+        .duty_resolution = LEDC_DUTY_RES,
+        .timer_num = LEDC_TIMER,
+        .freq_hz = LEDC_FREQUENCY, // Set output frequency at 4 kHz
+        .clk_cfg = LEDC_AUTO_CLK};
+    ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
 
-    vTaskDelay(pdMS_TO_TICKS(delay)); // Delay to prevent busy-waiting
-    m1.setSpeed(0.0);
-    m2.setSpeed(0.0);
-    m3.setSpeed(0.0);
-    m4.setSpeed(0.0);
-
-    gpio_set_level(LED_D3, 1);
-    hand_open = false;
+    // Prepare and then apply the LEDC PWM channel configuration
+    ledc_channel_config_t ledc_channel = {
+        .gpio_num = LEDC_OUTPUT_IO,
+        .speed_mode = LEDC_MODE,
+        .channel = LEDC_CHANNEL,
+        .intr_type = LEDC_INTR_DISABLE,
+        .timer_sel = LEDC_TIMER,
+        .duty = 0, // Set duty to 0%
+        .hpoint = 0};
+    ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 }
+////////////////////////////////////////////////////////////**
 
-void open_hand()
-{
-    float speed = 0.6;
-    int delay = 2000;
-
-    m1.setSpeed(speed);
-    m2.setSpeed(-speed);
-    m3.setSpeed(speed);
-    m4.setSpeed(speed);
-
-    vTaskDelay(pdMS_TO_TICKS(delay)); // Delay to prevent busy-waiting
-    m1.setSpeed(0.0);
-    m2.setSpeed(0.0);
-    m3.setSpeed(0.0);
-    m4.setSpeed(0.0);
-    // light down D3
-    gpio_set_level(LED_D3, 0);
-    hand_open = true;
-}
+MotorDriver m(0,GPIO_NUM_15, GPIO_NUM_10, GPIO_NUM_14);
 
 extern "C" void app_main(void)
 {
-    vTaskDelay(pdMS_TO_TICKS(5000));
-    UsbTask usbTask;
-    usbTask.start();
-    HeartBeat();
+    // Set the LEDC peripheral configuration
+    example_ledc_init();
+    // Set duty to 50%
+    ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, LEDC_DUTY));
+    // Update duty to apply the new value
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_CHANNEL));
+    m.init();
 
-    // initialize d3 as led
-    const gpio_config_t led_cfg = {
-        .pin_bit_mask = BIT64(LED_D3),
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_ENABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE};
-    gpio_config(&led_cfg);
-
-    // pass usb object
-    xTaskCreate([](void *arg)
-                {
-        auto usb = static_cast<UsbHidDevice *>(arg);
-        while (1) {
-            if(usb->getCommandedPoses(0) == 0)
-            {
-                if(hand_open)
-                    close_hand();
-            }
-            if(usb->getCommandedPoses(0) == 1)
-            {
-                if(!hand_open)
-                    open_hand();
-            }
-            vTaskDelay(pdMS_TO_TICKS(50));
-        } }, "listen_to_usb", 4096, usbTask._usb, 5, NULL);
-
-    m0.init();
-    m1.init();
-    m2.init();
-    m3.init();
-    m4.init();
-
-    // stop all motors
-    m0.setSpeed(0);
-    m1.setSpeed(0);
-    m2.setSpeed(0);
-    m3.setSpeed(0);
-    m4.setSpeed(0);
-
-    vTaskDelay(pdMS_TO_TICKS(2000));
-
-    while (1)
+    while(1)
     {
-
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Delay to prevent busy-waiting
+        uint32_t position = m.getEncoderPosition();
+        ESP_LOGI(TAG, "Encoder position: %lu", position);
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
+
 }
