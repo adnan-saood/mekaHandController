@@ -121,9 +121,12 @@ protected:
     float kp = -1.0f;
     float ki = 0.0f;
     float kd = 0.0f;
-    float proportional_error_ = 0.0f;
-    float integral_error_ = 0.0f;
-    float derivative_error_ = 0.0f;
+    float error_ = 0.0f; // e[k]
+    float error_1 = 0.0f; // e[k-1]
+    float error_2 = 0.0f; // e[k-2]
+
+    float integral_error_ = 0.0f; // Integral error
+    float proportional_error_ = 0.0f; // For derivative calculation
 };
 
 

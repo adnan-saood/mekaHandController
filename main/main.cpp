@@ -40,7 +40,7 @@ extern "C" void app_main(void)
     HeartBeat();
 
 
-    vTaskDelay(pdMS_TO_TICKS(4000)); // wait for 1 second
+    vTaskDelay(pdMS_TO_TICKS(6000)); // wait for 6 seconds
     m0.init();
     m1.init();
     m2.init();
@@ -88,14 +88,18 @@ extern "C" void app_main(void)
         
 
         float m1_velocity = m1.getSpeed();
-        usb_task._usb->getPayloadPointer()[20] = static_cast<uint8_t>(m1_velocity * 125 + 125); // velocity in centi-units
+        usb_task._usb->getPayloadPointer()[6] = static_cast<uint8_t>(m1_velocity * 125 + 125); // velocity in centi-units
+        float m2_velocity = m2.getSpeed();
+        usb_task._usb->getPayloadPointer()[7] = static_cast<uint8_t>(m2_velocity * 125 + 125); // velocity in centi-units
         float m3_velocity = m3.getSpeed();
-        usb_task._usb->getPayloadPointer()[21] = static_cast<uint8_t>(m3_velocity * 125 + 125); // velocity in centi-units
+        usb_task._usb->getPayloadPointer()[8] = static_cast<uint8_t>(m3_velocity * 125 + 125); // velocity in centi-units
         float m4_velocity = m4.getSpeed();
-        usb_task._usb->getPayloadPointer()[23] = static_cast<uint8_t>(m4_velocity * 125 + 125); // velocity in centi-units
+        usb_task._usb->getPayloadPointer()[9] = static_cast<uint8_t>(m4_velocity * 125 + 125); // velocity in centi-units
 
         float m1_position = m1.getPosition();
         usb_task._usb->getPayloadPointer()[1] = static_cast<uint8_t>(m1_position * 255); // position in units
+        float m2_position = m2.getPosition();
+        usb_task._usb->getPayloadPointer()[2] = static_cast<uint8_t>(m2_position * 255); // position in units
         float m3_position = m3.getPosition();
         usb_task._usb->getPayloadPointer()[3] = static_cast<uint8_t>(m3_position * 255); // position in units
         float m4_position = m4.getPosition();

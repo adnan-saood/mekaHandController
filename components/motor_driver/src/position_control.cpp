@@ -60,26 +60,77 @@ esp_err_t MotorDriver::stopPositionControl()
 extern "C" void MotorDriver::control_loop(void* pvParameters)
 {
     MotorDriver* driver = static_cast<MotorDriver*>(pvParameters);
-    const TickType_t xPeriod = pdMS_TO_TICKS(10);
+    const TickType_t xPeriod = pdMS_TO_TICKS(10); // 10 ms
+    const float Ts = 0.01f;
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    // Implement your control logic here
+
+    // tuning starting points (tweak)
+    // driver->kp = 0.8f;
+    // driver->ki = 0.2f;   // small because motor integrates speed->position
+    // driver->kd = 0.0f;   // usually 0 for outer position loop
+
+    const float min_effective_speed = 0.12f; // minimal speed to reliably overcome stiction
+    const float position_deadband = 0.003f;  // if position error smaller than this, treat as zero
+    const float i_max = 0.5f;                // integrator clamp (tune)
+    const float i_min = -0.5f;
+
     while (true) {
-        float p_error = driver->commanded_position_ - driver->getPosition();
-        driver->derivative_error_ = p_error - driver->proportional_error_;
-        driver->proportional_error_ = p_error;
-        float integral_error = driver->integral_error_ += p_error;
-        //clamp integral error
-        if (integral_error > 1.0f) integral_error = 1.0f;
-        if (integral_error < -1.0f) integral_error = -1.0f;
-        float control_signal = driver->kp * p_error + driver->ki * integral_error + driver->kd * driver->derivative_error_;
-    
-        // implement deadzone
-        if (fabs(control_signal) < 0.05f) {
-            control_signal = 0.0f;
+        // read errors
+        float pos = driver->getPosition();
+        float err = driver->commanded_position_ - pos;
+
+        // optional position deadband to avoid hunting around tiny errors
+        if (fabs(err) < position_deadband) {
+            err = 0.0f;
         }
 
-        driver->setSpeed(control_signal);
-        // ESP_LOGI(TAG, "Position: %.2f, error: %.2f, control_signal: %.2f", driver->getPosition(), p_error, control_signal);
+        // ANTI-WINDUP: conditional integration (only integrate if output not saturated)
+        // compute proportional contribution
+        float up = driver->kp * err;
+
+        // decide whether to integrate: integrate only if error is meaningful
+        bool integrate = fabs(err) > (position_deadband * 0.5f);
+
+        if (integrate) {
+            driver->integral_error_ += err * Ts; // scale by sample time
+        } else {
+            // optional: slow leak when inside deadband to remove residual offset
+            driver->integral_error_ *= 0.999f; // leaky integrator
+        }
+
+        // clamp integrator (anti-windup)
+        if (driver->integral_error_ > i_max) driver->integral_error_ = i_max;
+        if (driver->integral_error_ < i_min) driver->integral_error_ = i_min;
+
+        float ui = driver->ki * driver->integral_error_;
+
+        // optional derivative (be careful: noisy)
+        float derivative = (err - driver->proportional_error_) / Ts;
+        driver->proportional_error_ = err;
+        float ud = driver->kd * derivative;
+
+        // assemble control (this is a position->speed command)
+        float speed_cmd = up + ui + ud;
+
+        // --- anti-windup back-calculation (optional) ---
+        // If you clamp the final speed_cmd below, you can push back on the integrator:
+        // float raw = speed_cmd;
+        // speed_cmd = std::clamp(speed_cmd, -1.0f, 1.0f);
+        // float saturated = speed_cmd - raw;
+        // driver->integral_error_ += -sat_gain * saturated; // sat_gain ~ 1/Ti (tune)
+        // For simplicity we use clamping + conditional integration above.
+
+        // minimum effective speed instead of hard zero deadzone
+        if (fabs(speed_cmd) > 0.0f && fabs(speed_cmd) < min_effective_speed) {
+            // only boost to min if error indicates we actually want to move
+            speed_cmd = copysign(min_effective_speed, speed_cmd);
+        }
+
+        // final clamp
+        speed_cmd = std::clamp(speed_cmd, -1.0f, 1.0f);
+
+        driver->setSpeed(speed_cmd);
+
         vTaskDelayUntil(&xLastWakeTime, xPeriod);
     }
 }
