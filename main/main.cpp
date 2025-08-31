@@ -58,19 +58,6 @@ extern "C" void app_main(void)
     m3.startPositionControl();
     m4.startPositionControl();
 
-    // xTaskCreate([](void *arg) {
-    //     MotorDriver *motor = static_cast<MotorDriver *>(arg);
-    //     while(1){
-    //         motor->setSpeed(-0.3);
-    //         vTaskDelay(pdMS_TO_TICKS(4000));
-    //         motor->setSpeed(0);
-    //         vTaskDelay(pdMS_TO_TICKS(3000));
-    //         motor->setSpeed(0.3);
-    //         vTaskDelay(pdMS_TO_TICKS(4000));
-    //         motor->setSpeed(0);
-    //     }
-    // }, "PrintMotorPosition", 4096, &m4, 10, nullptr);
-
     while (1)
     {
         m1.setPosition(static_cast<float>(usb_task.getCommandedPose(1)) / 255.0f);
