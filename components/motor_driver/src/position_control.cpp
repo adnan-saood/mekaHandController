@@ -19,7 +19,24 @@ extern "C"
 #include <cmath>
 static const char *TAG = "PositionControl";
 
+esp_err_t MotorDriver::setPosition(float position)
+{
+    if (position < 0 || position > 1)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
 
+    commanded_position_ = position;
+    return ESP_OK;
+}
+
+esp_err_t MotorDriver::setGains(float kp, float ki, float kd)
+{
+    this->kp = kp;
+    this->ki = ki;
+    this->kd = kd;
+    return ESP_OK;
+}
 
 esp_err_t MotorDriver::startPositionControl()
 {

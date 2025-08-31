@@ -29,7 +29,6 @@ extern "C"
 #define APP_BUTTON GPIO_NUM_0
 static const char *TAG = "main";
 
-MotorDriver m0("motor_j0_", 0, MOTOR_J0_PWM, MOTOR_J0_DIR, MOTOR_ENC_0);
 MotorDriver m1("motor_j1_", 0, MOTOR_J1_PWM_H, MOTOR_J1_PWM_L, MOTOR_ENC_1);
 MotorDriver m2("motor_j2_", 0, MOTOR_J2_PWM_H, MOTOR_J2_PWM_L, MOTOR_ENC_2);
 MotorDriver m3("motor_j3_", 1, MOTOR_J3_PWM_H, MOTOR_J3_PWM_L, MOTOR_ENC_3);
@@ -41,7 +40,6 @@ extern "C" void app_main(void)
 
 
     vTaskDelay(pdMS_TO_TICKS(6000)); // wait for 6 seconds
-    m0.init();
     m1.init();
     m2.init();
     m3.init();
@@ -50,7 +48,13 @@ extern "C" void app_main(void)
     UsbTask usb_task;
     usb_task.start();
 
+    m1.setEncoderLimits(1000.0f, 3000.0f);
+    m2.setEncoderLimits(1000.0f, 3000.0f);
+    m3.setEncoderLimits(1000.0f, 3000.0f);
+    m4.setEncoderLimits(1000.0f, 3500.0f);
+
     m1.startPositionControl();
+    // m2.startPositionControl();
     m3.startPositionControl();
     m4.startPositionControl();
 
@@ -74,11 +78,16 @@ extern "C" void app_main(void)
                     - static_cast<float>(usb_task.getCommandedStiffness(2)) / 51.0f,
                     - static_cast<float>(usb_task.getCommandedStiffness(3)) / 51.0f);
 
+        m2.setPosition(static_cast<float>(usb_task.getCommandedPose(2)) / 255.0f);
+        m2.setGains(- static_cast<float>(usb_task.getCommandedStiffness(1)) / 51.0f,
+                    - static_cast<float>(usb_task.getCommandedStiffness(2)) / 51.0f,
+                    - static_cast<float>(usb_task.getCommandedStiffness(3)) / 51.0f);
 
         m3.setPosition(static_cast<float>(usb_task.getCommandedPose(3)) / 255.0f);
         m3.setGains(- static_cast<float>(usb_task.getCommandedStiffness(1)) / 51.0f,
                     - static_cast<float>(usb_task.getCommandedStiffness(2)) / 51.0f,
                     - static_cast<float>(usb_task.getCommandedStiffness(3)) / 51.0f);
+
 
         m4.setPosition(static_cast<float>(usb_task.getCommandedPose(4)) / 255.0f);
         m4.setGains(- static_cast<float>(usb_task.getCommandedStiffness(1)) / 51.0f,
@@ -88,13 +97,13 @@ extern "C" void app_main(void)
         
 
         float m1_velocity = m1.getSpeed();
-        usb_task._usb->getPayloadPointer()[6] = static_cast<uint8_t>(m1_velocity * 125 + 125); // velocity in centi-units
+        usb_task._usb->getPayloadPointer()[6] = static_cast<uint8_t>(m1_velocity * 127 + 127); // velocity in centi-units
         float m2_velocity = m2.getSpeed();
-        usb_task._usb->getPayloadPointer()[7] = static_cast<uint8_t>(m2_velocity * 125 + 125); // velocity in centi-units
+        usb_task._usb->getPayloadPointer()[7] = static_cast<uint8_t>(m2_velocity * 127 + 127); // velocity in centi-units
         float m3_velocity = m3.getSpeed();
-        usb_task._usb->getPayloadPointer()[8] = static_cast<uint8_t>(m3_velocity * 125 + 125); // velocity in centi-units
+        usb_task._usb->getPayloadPointer()[8] = static_cast<uint8_t>(m3_velocity * 127 + 127); // velocity in centi-units
         float m4_velocity = m4.getSpeed();
-        usb_task._usb->getPayloadPointer()[9] = static_cast<uint8_t>(m4_velocity * 125 + 125); // velocity in centi-units
+        usb_task._usb->getPayloadPointer()[9] = static_cast<uint8_t>(m4_velocity * 127 + 127); // velocity in centi-units
 
         float m1_position = m1.getPosition();
         usb_task._usb->getPayloadPointer()[1] = static_cast<uint8_t>(m1_position * 255); // position in units
@@ -105,6 +114,6 @@ extern "C" void app_main(void)
         float m4_position = m4.getPosition();
         usb_task._usb->getPayloadPointer()[4] = static_cast<uint8_t>(m4_position * 255); // position in units
 
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }

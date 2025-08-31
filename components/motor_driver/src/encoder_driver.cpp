@@ -64,6 +64,17 @@ esp_err_t MotorDriver::init_encoder()
     return ESP_OK;
 }
 
+esp_err_t MotorDriver::setEncoderLimits(float min, float max)
+{
+    if (min >= max)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    this->open_position_ = min;
+    this->closed_position_ = max;
+    return ESP_OK;
+}
 
 IRAM_ATTR bool MotorDriver::encoder_callback(mcpwm_cap_channel_handle_t cap_chan,
                              const mcpwm_capture_event_data_t *edata,
@@ -104,6 +115,6 @@ uint32_t MotorDriver::getEncoderPosition() const //us
 
 float MotorDriver::getPosition()
 {
-    position_ = (this->ma3_pulse_width_ - 1000.0f) / 2000.0f;
+    position_ = (this->ma3_pulse_width_ - this->open_position_) / (this->closed_position_ - this->open_position_);
     return position_; // in [0,1]
 }
