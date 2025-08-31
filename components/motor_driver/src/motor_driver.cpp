@@ -16,12 +16,14 @@ extern "C"
 
 #include "pin_config.h"
 #include <algorithm>
+#include <cmath>
 static const char *TAG = "MotorDriver";
-static const char *BLDC_TAG = "MotorDriverBLDC";
 
-static mcpwm_cap_timer_handle_t shared_cap_timer[2] = {nullptr, nullptr}; // For group 0 and 1
-
-MotorDriver::MotorDriver(const char* motor_name, int mcpwm_unit, gpio_num_t pwm_high_gpio, gpio_num_t pwm_low_gpio, gpio_num_t encoder_gpio)
+MotorDriver::MotorDriver(const char* motor_name,
+                                int mcpwm_unit,
+                                gpio_num_t pwm_high_gpio,
+                                gpio_num_t pwm_low_gpio,
+                                gpio_num_t encoder_gpio)
     : motor_name_(motor_name),
       mcpwm_unit_(mcpwm_unit),
       pwm_high_gpio_(pwm_high_gpio),
@@ -104,38 +106,6 @@ esp_err_t MotorDriver::init()
     return ESP_OK;
 }
 
-esp_err_t MotorDriver::startPositionControl()
-{
-    if (!initialized_)
-    {
-        ESP_LOGE(TAG, "MotorDriver not initialized");
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    char control_task_name[32];
-    snprintf(control_task_name, sizeof(control_task_name), "%s_control", motor_name_);
-    // Create control task
-    xTaskCreate(control_loop, control_task_name, 4096, this, 10, &(this->control_task_handle_));
-    return ESP_OK;
-}
-
-esp_err_t MotorDriver::stopPositionControl()
-{
-    if (!initialized_)
-    {
-        ESP_LOGE(TAG, "MotorDriver not initialized");
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    // Stop the position control task
-    if (control_task_handle_ != nullptr)
-    {
-        vTaskDelete(control_task_handle_);
-        control_task_handle_ = nullptr;
-    }
-
-    return this->disarm_motor();
-}
 
 esp_err_t MotorDriver::disarm_motor()
 {
@@ -156,47 +126,6 @@ esp_err_t MotorDriver::disarm_motor()
 
     return ESP_OK;
 }
-
-esp_err_t MotorDriver::init_encoder()
-{
-    ESP_LOGI(TAG, "Install capture timer");
-
-    // Only create the timer once per group
-    if (shared_cap_timer[mcpwm_unit_] == nullptr) {
-        mcpwm_capture_timer_config_t cap_conf = {
-            .group_id = mcpwm_unit_,
-            .clk_src = MCPWM_CAPTURE_CLK_SRC_DEFAULT,
-            .resolution_hz = 80000000 // 80 MHz
-        };
-        ESP_ERROR_CHECK(mcpwm_new_capture_timer(&cap_conf, &shared_cap_timer[mcpwm_unit_]));
-        ESP_ERROR_CHECK(mcpwm_capture_timer_enable(shared_cap_timer[mcpwm_unit_]));
-        ESP_ERROR_CHECK(mcpwm_capture_timer_start(shared_cap_timer[mcpwm_unit_]));
-    }
-
-    ESP_LOGI(TAG, "Install capture channel");
-    mcpwm_cap_channel_handle_t cap_chan = NULL;
-    mcpwm_capture_channel_config_t cap_ch_conf = {
-        .gpio_num = encoder_gpio_,
-        .prescale = 1,
-    };
-    cap_ch_conf.flags.pos_edge = true;
-    cap_ch_conf.flags.neg_edge = true;
-    cap_ch_conf.flags.pull_up = false;
-    cap_ch_conf.flags.pull_down = true;
-    cap_ch_conf.flags.invert_cap_signal = false;
-
-    ESP_ERROR_CHECK(mcpwm_new_capture_channel(shared_cap_timer[mcpwm_unit_], &cap_ch_conf, &cap_chan));
-
-    ESP_LOGI(TAG, "Register capture callback");
-    mcpwm_capture_event_callbacks_t cbs = {
-        .on_cap = encoder_callback,
-    };
-    ESP_ERROR_CHECK(mcpwm_capture_channel_register_event_callbacks(cap_chan, &cbs, this));
-    ESP_ERROR_CHECK(mcpwm_capture_channel_enable(cap_chan));
-
-    return ESP_OK;
-}
-
 
 esp_err_t MotorDriver::setSpeed(float speed)
 {
@@ -228,86 +157,3 @@ esp_err_t MotorDriver::setSpeed(float speed)
     return ESP_OK;
 }
 
-esp_err_t MotorDriverBLDC::setSpeed(float speed)
-{
-    if (!initialized_)
-    {
-        ESP_LOGE(TAG, "MotorDriver not initialized");
-        return ESP_ERR_INVALID_STATE;
-    }
-    // Ensure speed is within [-1.0, 1.0]
-    if (speed < -1.0f)
-        speed = -1.0f;
-    if (speed > 1.0f)
-        speed = 1.0f;
-
-    const uint32_t duty_ticks = static_cast<uint32_t>((speed < 0 ? -speed : speed) * 1000); // 1000 ticks = 100% duty (25kHz)
-
-    if (speed >= 0)
-    {
-        ESP_RETURN_ON_ERROR(mcpwm_comparator_set_compare_value(comparator_high_, duty_ticks), BLDC_TAG, "Set Speed");
-        ESP_RETURN_ON_ERROR(mcpwm_comparator_set_compare_value(comparator_low_, 0), BLDC_TAG, "Set Direction");
-    }
-    else
-    {
-        ESP_RETURN_ON_ERROR(mcpwm_comparator_set_compare_value(comparator_high_, duty_ticks), BLDC_TAG, "Set Speed");
-        ESP_RETURN_ON_ERROR(mcpwm_comparator_set_compare_value(comparator_low_, 1000), BLDC_TAG, "Set Direction");
-    }
-    return ESP_OK;
-}
-
-IRAM_ATTR bool MotorDriver::encoder_callback(mcpwm_cap_channel_handle_t cap_chan,
-                             const mcpwm_capture_event_data_t *edata,
-                             void *user_data)
-{
-    MotorDriver* self = reinterpret_cast<MotorDriver*>(user_data);
-
-    if (!self)
-    {
-        return false;
-    }
-
-    if (edata->cap_edge == MCPWM_CAP_EDGE_POS)
-    {
-        self->cap_val_rise_ = edata->cap_value;
-    }
-    else if (edata->cap_edge == MCPWM_CAP_EDGE_NEG)
-    {
-        uint32_t pulse_width = (edata->cap_value - self->cap_val_rise_) / 80;
-        // Insert new value at current index
-        self->pulse_array_[self->pulse_index_] = pulse_width;
-        self->pulse_index_ = (self->pulse_index_ + 1) % 11; // Circular buffer
-
-        // Copy to temp array for sorting
-        uint32_t temp_array[11];
-        memcpy(temp_array, self->pulse_array_, sizeof(self->pulse_array_));
-        std::sort(temp_array, temp_array + 11);
-
-        self->ma3_pulse_width_ = temp_array[5] < 4166 ? temp_array[5] : self->ma3_pulse_width_;
-    }
-    return true;
-}
-
-uint32_t MotorDriver::getEncoderPosition() const //us
-{
-    return ma3_pulse_width_; // in microseconds
-}
-
-float MotorDriver::getPosition()
-{
-    position_ = (this->ma3_pulse_width_ - 1000.0f) / 2000.0f;
-    return position_; // in [0,1]
-}
-
-extern "C" void MotorDriver::control_loop(void* pvParameters)
-{
-    MotorDriver* driver = static_cast<MotorDriver*>(pvParameters);
-    // Implement your control logic here
-    while (true) {
-        float error = driver->commanded_position_ - driver->getPosition();
-        float control_signal = driver->kp * error;
-        driver->setSpeed(control_signal);
-        ESP_LOGI(TAG, "Position: %.2f, error: %.2f, control_signal: %.2f", driver->getPosition(), error, control_signal);
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-}
