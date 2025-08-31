@@ -78,6 +78,19 @@ public:
     }
 
     UsbHidDevice *_usb;
+
+    float getCommandedPose(uint8_t motor_index) {
+        if (_usb) {
+            return _usb->getCommandedPoses(motor_index);
+        }
+        return 0;
+    }
+    float getCommandedStiffness(uint8_t motor_index) {
+        if (_usb) {
+            return _usb->getCommandedStiffness(motor_index);
+        }
+        return 0;
+    }
 private:
     static void taskFunction(void *arg);
     TaskHandle_t taskHandle;
